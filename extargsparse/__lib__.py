@@ -26,7 +26,7 @@ def call_func_args(funcname,args,Context):
     logging.info('call function %s'%(funcname))
     try:
         if '.' not in funcname:
-            m = __import__(mname)
+            m = importlib.import_module(mname)
         else:
             sarr = re.split('\.',funcname)
             mname = '.'.join(sarr[:-1])
@@ -206,7 +206,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         if curparser is not None:
             putparser = curparser.parser
         helpinfo = self.__get_help_info(keycls)
-        logging.info('dest %s'%(optdest))
+        #logging.info('dest %s'%(optdest))
         if shortopt:
             putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action=CountAction)
         else:
@@ -296,7 +296,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         if keycls.helpinfo:
             helpinfo = keycls.helpinfo
         if keycls.nargs != 0:
-            logging.info('optdest %s'%(optdest))
+            #logging.info('optdest %s'%(optdest))
             putparser.add_argument(optdest,metavar=optdest,type=str,nargs=keycls.nargs,help=helpinfo)
         return True
 
@@ -394,11 +394,11 @@ class ExtArgsParse(argparse.ArgumentParser):
             if curparser:
                 # if we have in the mode for this we should make it
                 # must be the flag mode
-                logging.info('%s , %s , %s , True'%(prefix,k,v))
+                #logging.info('%s , %s , %s , True'%(prefix,k,v))
                 keycls = keyparse.ExtKeyParse(prefix,k,v,True)
             else:
                 # we can not make sure it is flag mode
-                logging.info('%s , %s , %s , False'%(prefix,k,v))
+                #logging.info('%s , %s , %s , False'%(prefix,k,v))
                 keycls = keyparse.ExtKeyParse(prefix,k,v,False)
             valid = self.__load_command_map[keycls.type](prefix,keycls,curparser)
             if not valid:
@@ -417,7 +417,7 @@ class ExtArgsParse(argparse.ArgumentParser):
             d = json.loads(s)
         except:
             raise Exception('(%s) not valid json string'%(s))
-        logging.info('d (%s)'%(d))
+        #logging.info('d (%s)'%(d))
         self.load_command_line(d)
         return
 
@@ -429,7 +429,7 @@ class ExtArgsParse(argparse.ArgumentParser):
                     if getattr(args,key,None) is None:
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
                             logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                        logging.info('set (%s)=(%s)'%(key,value))
+                        #logging.info('set (%s)=(%s)'%(key,value))
                         setattr(args,key,value)
                     return args
         # we search for other value
@@ -439,7 +439,7 @@ class ExtArgsParse(argparse.ArgumentParser):
                     if getattr(args,key,None) is None:
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
                             logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                        logging.info('set (%s)=(%s)'%(key,value))
+                        #logging.info('set (%s)=(%s)'%(key,value))
                         setattr(args,key,value)
                     return args
         for parser in self.__cmdparsers:
@@ -449,10 +449,10 @@ class ExtArgsParse(argparse.ArgumentParser):
                         if getattr(args,key,None) is None:
                             if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
                                 logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                            logging.info('set (%s)=(%s)'%(key,value))
+                            #logging.info('set (%s)=(%s)'%(key,value))
                             setattr(args,key,value)
                         return args
-        logging.info('can not search for (%s)'%(key))
+        logging.warn('can not search for (%s)'%(key))
         return args
 
     def __load_jsonvalue(self,args,prefix,jsonvalue,flagarray):
