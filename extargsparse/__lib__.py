@@ -137,9 +137,9 @@ class ExtArgsParse(argparse.ArgumentParser):
         helpinfo = ''
         if keycls.type == 'bool':
             if keycls.value :
-                helpinfo += '%s set false'%(keycls.optdest)
+                helpinfo += '%s set false default(True)'%(keycls.optdest)
             else:
-                helpinfo += '%s set true'%(keycls.optdest)
+                helpinfo += '%s set true default(False)'%(keycls.optdest)
         elif keycls.type == 'string' and keycls.value == '+':
             if keycls.isflag:
                 helpinfo += '%s inc'%(keycls.optdest)
@@ -147,7 +147,7 @@ class ExtArgsParse(argparse.ArgumentParser):
                 raise Exception('cmd(%s) can not set value(%s)'%(keycls.cmdname,keycls.value))
         else:
             if keycls.isflag:
-                helpinfo += '%s set'%(keycls.optdest)
+                helpinfo += '%s set default(%s)'%(keycls.optdest,keycls.value)
             else:
                 helpinfo += '%s command exec'%(keycls.cmdname)
         if keycls.helpinfo:
@@ -1275,7 +1275,48 @@ class ExtArgsTestCase(unittest.TestCase):
                 del os.environ['EXTARGSPARSE_JSON']
             if 'DEP_JSON' in os.environ.keys():
                 del os.environ['DEP_JSON']
+            delone = True
+            while delone:
+                delone = False
+                for k in os.environ.keys():
+                    if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON':
+                        del os.environ[k]
+                        delone = True
+                        break
         return
+
+    def test_A017(self):
+        commandline= '''
+        {
+            "+dpkg" : {
+                "dpkg" : "dpkg"
+            },
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            }
+        }
+        '''
+        delone = True
+        while delone:
+            delone = False
+            for k in os.environ.keys():
+                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON':
+                    del os.environ[k]
+                    delone = True
+                    break
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line([])
+        self.assertEqual(args.verbose,0)
+        self.assertEqual(args.port,3000)
+        self.assertEqual(args.dpkg_dpkg,'dpkg')
+        return
+
+
 
 
 def main():
