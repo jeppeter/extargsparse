@@ -22,7 +22,7 @@ class TypeClass(object):
 			self.__type = 'int'
 		elif isinstance(v ,float):
 			self.__type = 'float'
-		elif isinstance(v,unicode):
+		elif sys.version[0] == '2' and isinstance(v,unicode):
 			self.__type = 'unicode'
 		elif v is None:
 			# we use default string
@@ -59,7 +59,8 @@ class Utf8Encode:
 
 	def __encode_utf8(self,val):
 		retval = val
-		if isinstance(val,unicode):
+
+		if sys.version[0]=='2' and isinstance(val,unicode):
 			retval = val.encode('utf8')
 		elif isinstance(val,dict):
 			retval = self.__dict_utf8(val)
