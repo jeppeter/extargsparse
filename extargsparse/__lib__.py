@@ -313,11 +313,14 @@ class ExtArgsParse(argparse.ArgumentParser):
 		return self.__load_command_line_jsonfile(keycls,curparser)
 
 
-	def __init__(self,prog=None,usage=None,description=None,epilog=None,
+	def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,
                  parents=[],formatter_class=argparse.HelpFormatter,prefix_chars='-',
                  fromfile_prefix_chars=None,argument_default=None,
                  conflict_handler='error',add_help=True):
-		argparse.ArgumentParser.__init__(self)
+		super(ExtArgsParse,self).__init__(prog,usage,description,epilog,version,
+                 parents,formatter_class,prefix_chars,
+                 fromfile_prefix_chars,argument_default,
+                 conflict_handler,add_help)
 		self.__subparser = None
 		self.__cmdparsers = []
 		self.__flags = []
