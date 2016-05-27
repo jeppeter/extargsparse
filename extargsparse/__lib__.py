@@ -295,7 +295,9 @@ class ExtArgsParse(argparse.ArgumentParser):
         helpinfo = '%s set '%(optdest)
         if keycls.helpinfo:
             helpinfo = keycls.helpinfo
-        putparser.add_argument(optdest,metavar='N',type=str,nargs=keycls.nargs,help=helpinfo)
+        if keycls.nargs != 0:
+            logging.info('optdest %s'%(optdest))
+            putparser.add_argument(optdest,metavar=optdest,type=str,nargs=keycls.nargs,help=helpinfo)
         return True
 
     def __load_command_line_jsonfile(self,keycls,curparser=None):
@@ -321,11 +323,16 @@ class ExtArgsParse(argparse.ArgumentParser):
         return self.__load_command_line_jsonfile(keycls,curparser)
 
 
-    def __init__(self,prog=None,usage=None,description=None,epilog=None,
+    def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,
                  parents=[],formatter_class=argparse.HelpFormatter,prefix_chars='-',
                  fromfile_prefix_chars=None,argument_default=None,
                  conflict_handler='error',add_help=True):
-        argparse.ArgumentParser.__init__(self)
+        if sys.version[0] == '2':
+            super(ExtArgsParse,self).__init__(prog,usage,description,epilog,version,parents,formatter_class,prefix_chars,
+                fromfile_prefix_chars,argument_default,conflict_handler,add_help)
+        else:
+            super(ExtArgsParse,self).__init__(prog,usage,description,epilog,parents,formatter_class,prefix_chars,
+                fromfile_prefix_chars,argument_default,conflict_handler,add_help)
         self.__subparser = None
         self.__cmdparsers = []
         self.__flags = []
