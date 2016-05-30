@@ -23,7 +23,6 @@ def set_attr_args(self,args,prefix):
 def call_func_args(funcname,args,Context):
     mname = '__main__'
     fname = funcname
-    logging.info('call function %s'%(funcname))
     try:
         if '.' not in funcname:
             m = importlib.import_module(mname)
@@ -33,7 +32,7 @@ def call_func_args(funcname,args,Context):
             fname = sarr[-1]
             m = importlib.import_module(mname)
     except ImportError as e:
-        logging.error('can not load %s'%(mname))
+        sys.stderr.write('can not load %s\n'%(mname))
         return args
 
     for d in dir(m):
@@ -42,7 +41,7 @@ def call_func_args(funcname,args,Context):
             if hasattr(val,'__call__'):
                 val(args,Context)
                 return args
-    logging.warn('can not call %s'%(funcname))
+    sys.stderr.write('can not call %s\n'%(funcname))
     return args
 
 
@@ -91,44 +90,6 @@ class FloatAction(argparse.Action):
         setattr(namespace,self.dest,fval)
         return
 
-class CountAction(argparse.Action):
-     def __init__(self, option_strings, dest, nargs=0, **kwargs):
-        super(CountAction,self).__init__(option_strings, dest, **kwargs)
-        self.__shortflag = None
-        self.__longflag = None
-        if isinstance(option_strings,list):
-            for v in option_strings:
-                if len(v) == 2 and v[0] == '-' and v[0] != '-':
-                    self.__shortflag = v[1]
-                elif v.startswith('--'):
-                    self.__longflag = v[2:]
-        elif isinstance(option_strings,str):
-            if len(option_strings) == 2 and option_strings[0] == '-' and option_strings[1] != '-':
-                self.__shortflag = option_strings[1]
-            elif option_strings.startswith('--'):
-                self.__longflag = option_strings[2:]
-        return
-
-     def __call__(self, parser, namespace, values, option_string=None):
-        cnt = getattr(namespace,self.dest)
-        notvalid = False
-        if self.__longflag and values == self.__longflag:
-            if cnt is None:
-                cnt = 1
-            else:
-                cnt += 1
-        else:
-            for v in values:
-                if self.__shortflag and v != self.__shortflag:
-                    notvalid = True
-                    break
-                if cnt is None:
-                    cnt = 1
-                cnt += 1
-
-        if not notvalid:
-            setattr(namespace,self.dest,cnt)
-        return
 
 
 class ExtArgsParse(argparse.ArgumentParser):
@@ -206,11 +167,10 @@ class ExtArgsParse(argparse.ArgumentParser):
         if curparser is not None:
             putparser = curparser.parser
         helpinfo = self.__get_help_info(keycls)
-        #logging.info('dest %s'%(optdest))
         if shortopt:
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action=CountAction)
+            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action='count',help=helpinfo)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,action=CountAction)
+            putparser.add_argument(longopt,dest=optdest,default=None,action='count',help=helpinfo)
         return True
 
 
@@ -333,6 +293,24 @@ class ExtArgsParse(argparse.ArgumentParser):
         else:
             super(ExtArgsParse,self).__init__(prog,usage,description,epilog,parents,formatter_class,prefix_chars,
                 fromfile_prefix_chars,argument_default,conflict_handler,add_help)
+        self.__logger = logging.getLogger('extargsparse')
+        loglvl = logging.WARN
+        if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
+            v = os.environ['EXTARGSPARSE_LOGLEVEL']
+            if v == 'DEBUG':
+                loglvl = logging.DEBUG
+            elif v == 'INFO':
+                loglvl = logging.INFO
+        handler = logging.StreamHandler()
+        fmt = "%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s"
+        if 'EXTARGSPARSE_LOGFMT' in os.environ.keys():
+            v = os.environ['EXTARGSPARSE_LOGFMT']
+            if v is not None and len(v) > 0:
+                fmt = v
+        formatter = logging.Formatter(fmt)
+        handler.setFormatter(formatter)
+        self.__logger.addHandler(handler)
+        self.__logger.setLevel(loglvl)
         self.__subparser = None
         self.__cmdparsers = []
         self.__flags = []
@@ -394,11 +372,11 @@ class ExtArgsParse(argparse.ArgumentParser):
             if curparser:
                 # if we have in the mode for this we should make it
                 # must be the flag mode
-                #logging.info('%s , %s , %s , True'%(prefix,k,v))
+                self.__logger.info('%s , %s , %s , True'%(prefix,k,v))
                 keycls = keyparse.ExtKeyParse(prefix,k,v,True)
             else:
                 # we can not make sure it is flag mode
-                #logging.info('%s , %s , %s , False'%(prefix,k,v))
+                self.__logger.info('%s , %s , %s , False'%(prefix,k,v))
                 keycls = keyparse.ExtKeyParse(prefix,k,v,False)
             valid = self.__load_command_map[keycls.type](prefix,keycls,curparser)
             if not valid:
@@ -417,7 +395,7 @@ class ExtArgsParse(argparse.ArgumentParser):
             d = json.loads(s)
         except:
             raise Exception('(%s) not valid json string'%(s))
-        #logging.info('d (%s)'%(d))
+        #self.__logger.info('d (%s)'%(d))
         self.load_command_line(d)
         return
 
@@ -428,8 +406,8 @@ class ExtArgsParse(argparse.ArgumentParser):
                 if p.optdest == key:
                     if getattr(args,key,None) is None:
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
-                            logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                        #logging.info('set (%s)=(%s)'%(key,value))
+                            self.__logger.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
+                        self.__logger.info('set (%s)=(%s)'%(key,value))
                         setattr(args,key,value)
                     return args
         # we search for other value
@@ -438,8 +416,8 @@ class ExtArgsParse(argparse.ArgumentParser):
                 if p.optdest == key:
                     if getattr(args,key,None) is None:
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
-                            logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                        #logging.info('set (%s)=(%s)'%(key,value))
+                            self.__logger.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
+                        self.__logger.info('set (%s)=(%s)'%(key,value))
                         setattr(args,key,value)
                     return args
         for parser in self.__cmdparsers:
@@ -448,11 +426,11 @@ class ExtArgsParse(argparse.ArgumentParser):
                     if p.optdest == key:
                         if getattr(args,key,None) is None:
                             if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(p.value)):
-                                logging.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                            #logging.info('set (%s)=(%s)'%(key,value))
+                                self.__logger.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
+                            self.__logger.info('set (%s)=(%s)'%(key,value))
                             setattr(args,key,value)
                         return args
-        logging.warn('can not search for (%s)'%(key))
+        self.__logger.warn('can not search for (%s)'%(key))
         return args
 
     def __load_jsonvalue(self,args,prefix,jsonvalue,flagarray):
@@ -544,19 +522,19 @@ class ExtArgsParse(argparse.ArgumentParser):
                                 raise Exception('(%s) environ(%s) not valid'%(optdest,val))
                             setattr(args,oldopt,lval)
                         except:
-                            logging.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.__logger.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
                     elif keycls.type == 'int':
                         try:
                             lval = int(val)
                             setattr(args,oldopt,lval)
                         except:
-                            logging.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.__logger.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
                     elif keycls.type == 'float':
                         try:
                             lval = float(val)
                             setattr(args,oldopt,lval)
                         except:
-                            logging.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.__logger.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
                     else:
                         raise Exception('internal error when (%s) type(%s)'%(keycls.optdest,keycls.type))
         return args
@@ -646,9 +624,14 @@ class ExtArgsTestCase(unittest.TestCase):
     def setUp(self):
         if 'EXTARGSPARSE_JSON' in os.environ.keys():
             del os.environ['EXTARGSPARSE_JSON']
-        for k in os.environ.keys():
-            if k.startswith('EXTARGS_'):
-                del os.environ[k]
+        delone = True
+        while delone:
+            delone = False
+            for k in os.environ.keys():
+                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('RDEP_'):
+                    del os.environ[k]
+                    delone = True
+                    break
         return
 
     def tearDown(self):
@@ -977,8 +960,6 @@ class ExtArgsTestCase(unittest.TestCase):
 
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
             os.environ['DEP_JSON'] = depjsonfile
             args = parser.parse_command_line(['-vvvv','-p','9000','dep','--dep-string','ee','ww'])
             self.assertEqual(args.verbose,4)
@@ -991,8 +972,6 @@ class ExtArgsTestCase(unittest.TestCase):
             if depjsonfile is not None:
                 os.remove(depjsonfile)
             depjsonfile = None
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
         return
 
     def test_A012(self):
@@ -1063,10 +1042,6 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(jsonfile,'w+') as f:
                 f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
 
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
@@ -1117,10 +1092,6 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list":["depjson1","depjson2"]}\n')
 
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
             parser = ExtArgsParse()
@@ -1140,10 +1111,6 @@ class ExtArgsTestCase(unittest.TestCase):
             if jsonfile is not None:
                 os.remove(jsonfile)
             jsonfile = None
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
         return
 
 
@@ -1178,10 +1145,6 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list":["depjson1","depjson2"]}\n')
 
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
             os.environ['DEP_JSON'] = depjsonfile
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
@@ -1200,10 +1163,6 @@ class ExtArgsTestCase(unittest.TestCase):
             if jsonfile is not None:
                 os.remove(jsonfile)
             jsonfile = None
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
         return
 
 
@@ -1241,14 +1200,6 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list":["depjson1","depjson2"]}\n')
 
-            delone = True
-            while delone:
-                delone = False
-                for k in os.environ.keys():
-                    if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON':
-                        del os.environ[k]
-                        delone = True
-                        break
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -1271,18 +1222,6 @@ class ExtArgsTestCase(unittest.TestCase):
             if jsonfile is not None:
                 os.remove(jsonfile)
             jsonfile = None
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
-            delone = True
-            while delone:
-                delone = False
-                for k in os.environ.keys():
-                    if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON':
-                        del os.environ[k]
-                        delone = True
-                        break
         return
 
     def test_A017(self):
@@ -1300,18 +1239,35 @@ class ExtArgsTestCase(unittest.TestCase):
             }
         }
         '''
-        delone = True
-        while delone:
-            delone = False
-            for k in os.environ.keys():
-                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON':
-                    del os.environ[k]
-                    delone = True
-                    break
         parser = ExtArgsParse()
         parser.load_command_line_string(commandline)
         args = parser.parse_command_line([])
         self.assertEqual(args.verbose,0)
+        self.assertEqual(args.port,3000)
+        self.assertEqual(args.dpkg_dpkg,'dpkg')
+        return
+
+    def test_A018(self):
+        commandline= '''
+        {
+            "+dpkg" : {
+                "dpkg" : "dpkg"
+            },
+            "verbose|v" : "+",
+            "rollback|r": true,
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['-vvrvv'])
+        self.assertEqual(args.verbose,4)
+        self.assertEqual(args.rollback,False)
         self.assertEqual(args.port,3000)
         self.assertEqual(args.dpkg_dpkg,'dpkg')
         return
@@ -1321,7 +1277,7 @@ class ExtArgsTestCase(unittest.TestCase):
 
 def main():
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
-        logging.basicConfig(level=logging.INFO,format="%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s") 
+        os.environ['EXTARGSPARSE_LOGLEVEL'] = 'DEBUG'
     unittest.main()
 
 if __name__ == '__main__':

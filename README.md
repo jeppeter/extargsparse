@@ -534,6 +534,9 @@ subnargs = ['cc','dd']
         function is just after cmdname ,it can be the optional ,it will be the call function name ,it include the packagename like '__main__.call_handler'
         helpinfo is just after function ,it between ## ## it is optional
 
+* enable debug 
+  ** you can specified the environment value EXTARGSPARSE_LOGLEVELV=DEBUG to enable the debug of extargsparse
+
 # Most Complex Example
 
 ```python
