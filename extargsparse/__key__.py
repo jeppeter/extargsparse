@@ -768,7 +768,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.optdest,'good_flag')
 		return
 
-	def test_A023(self):
+	def test_A024(self):
 		ok = False
 		try:
 			flags = ExtKeyParse('','$flag## flag help ##',{'prefix':'good','value':False,'nargs':2},False)
@@ -776,12 +776,12 @@ class UnitTestCase(unittest.TestCase):
 			ok = True
 		return
 
-	def test_A024(self):
+	def test_A025(self):
 		t = TypeClass(u'*')
 		self.assertEqual(str(t),'unicode')
 		return
 
-	def test_A025(self):
+	def test_A026(self):
 		flags = ExtKeyParse('dep',u'$',u'+',True)
 		self.assertEqual(flags.flagname,'$')
 		self.assertEqual(flags.prefix,'dep')
@@ -795,7 +795,7 @@ class UnitTestCase(unittest.TestCase):
 		self.__opt_fail_check(flags)
 		return
 
-	def test_A026(self):
+	def test_A027(self):
 		flags = ExtKeyParse('dep','verbose|v','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
@@ -811,7 +811,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-v')
 		return
 
-	def test_A027(self):
+	def test_A028(self):
 		flags = ExtKeyParse('','verbose|v## new help info ##','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
