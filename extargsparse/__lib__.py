@@ -301,25 +301,26 @@ class ExtArgsParse(argparse.ArgumentParser):
                 fromfile_prefix_chars,argument_default,conflict_handler,add_help)
         else:
             super(ExtArgsParse,self).__init__(prog,usage,description,epilog,parents,formatter_class,prefix_chars,
-                fromfile_prefix_chars,argument_default,conflict_handler,add_help)
+                fromfile_prefix_chars,argument_default,conflict_handler,add_help)                
         self.__logger = logging.getLogger('extargsparse')
-        loglvl = logging.WARN
-        if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
-            v = os.environ['EXTARGSPARSE_LOGLEVEL']
-            if v == 'DEBUG':
-                loglvl = logging.DEBUG
-            elif v == 'INFO':
-                loglvl = logging.INFO
-        handler = logging.StreamHandler()
-        fmt = "%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s"
-        if 'EXTARGSPARSE_LOGFMT' in os.environ.keys():
-            v = os.environ['EXTARGSPARSE_LOGFMT']
-            if v is not None and len(v) > 0:
-                fmt = v
-        formatter = logging.Formatter(fmt)
-        handler.setFormatter(formatter)
-        self.__logger.addHandler(handler)
-        self.__logger.setLevel(loglvl)
+        if len(self.__logger.handlers) == 0:
+            loglvl = logging.WARN
+            if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
+                v = os.environ['EXTARGSPARSE_LOGLEVEL']
+                if v == 'DEBUG':
+                    loglvl = logging.DEBUG
+                elif v == 'INFO':
+                    loglvl = logging.INFO
+            handler = logging.StreamHandler()
+            fmt = "%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s"
+            if 'EXTARGSPARSE_LOGFMT' in os.environ.keys():
+                v = os.environ['EXTARGSPARSE_LOGFMT']
+                if v is not None and len(v) > 0:
+                    fmt = v
+            formatter = logging.Formatter(fmt)
+            handler.setFormatter(formatter)
+            self.__logger.addHandler(handler)
+            self.__logger.setLevel(loglvl)
         self.__subparser = None
         self.__cmdparsers = []
         self.__flags = []
@@ -1361,6 +1362,36 @@ class ExtArgsTestCase(unittest.TestCase):
             if jsonfile is not None:
                 os.remove(jsonfile)
             jsonfile = None
+        return
+
+    def test_A020(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "rollback|R" : true,
+            "$port|P" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['-P','9000','--no-rollback','dep','--dep-string','ee','ww'])
+        self.assertEqual(args.verbose,0)
+        self.assertEqual(args.port, 9000)
+        self.assertEqual(args.rollback,False)
+        self.assertEqual(args.subcommand,'dep')
+        self.assertEqual(args.dep_list,[])
+        self.assertEqual(args.dep_string,'ee')
+        self.assertEqual(args.subnargs,['ww'])
         return
 
 

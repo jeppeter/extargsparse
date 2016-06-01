@@ -553,6 +553,7 @@ def main():
   commandline= '''
   {
     "verbose|v" : "+",
+    "rollback|R" : true,
     "+http" : {
       "url|u" : "http://www.google.com",
       "visual_mode|V": false
@@ -605,7 +606,7 @@ def main():
     os.environ['DEP_LIST'] = depliststr
     os.environ['HTTP_VISUAL_MODE']=httpvmstr
     
-    args = parser.parse_command_line(['-p','9000','dep','--dep-string','ee','ww'])
+    args = parser.parse_command_line(['-p','9000','--no-rollback','dep','--dep-string','ee','ww'])
     print('args.verbose %d'%(args.verbose))
     print('args.port %d'%(args.port))
     print('args.dep_list %s'%(args.dep_list))
@@ -635,10 +636,10 @@ if __name__ == '__main__':
 ```shell
 args.verbose 3
 args.port 9000
+args.rollback False
 args.dep_list [u'jsonval1', u'jsonval2']
 args.dep_string ee
 args.http_visual_mode True
 args.http_url http://www.yahoo.com
 args.subcommand dep
-args.subnargs ['ww']
-```
+args.subnargs ['ww']```
