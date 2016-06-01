@@ -12,6 +12,14 @@ import tempfile
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import __key__ as keyparse
 
+COMMAND_SET = 10
+SUB_COMMAND_JSON_SET = 20
+COMMAND_JSON_SET = 30
+ENVIRONMENT_SET = 40
+ENV_SUB_COMMAND_JSON_SET = 50
+ENV_COMMAND_JSON_SET = 60
+DEFAULT_SET = 70
+
 def set_attr_args(self,args,prefix):
     if not issubclass(args.__class__,argparse.Namespace):
         raise Exception('second args not valid argparse.Namespace subclass')
@@ -94,6 +102,7 @@ class FloatAction(argparse.Action):
 
 class ExtArgsParse(argparse.ArgumentParser):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs']
+    priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
     def __get_help_info(self,keycls):
         helpinfo = ''
         if keycls.type == 'bool':
@@ -286,7 +295,7 @@ class ExtArgsParse(argparse.ArgumentParser):
     def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,
                  parents=[],formatter_class=argparse.HelpFormatter,prefix_chars='-',
                  fromfile_prefix_chars=None,argument_default=None,
-                 conflict_handler='error',add_help=True):
+                 conflict_handler='error',add_help=True,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
         if sys.version[0] == '2':
             super(ExtArgsParse,self).__init__(prog,usage,description,epilog,version,parents,formatter_class,prefix_chars,
                 fromfile_prefix_chars,argument_default,conflict_handler,add_help)
@@ -325,6 +334,17 @@ class ExtArgsParse(argparse.ArgumentParser):
             'command' : self.__load_command_subparser,
             'prefix' : self.__load_command_prefix,
             'count': self.__load_command_line_count
+        }
+        for p in priority:
+            if p not in self.__class__.priority_args:
+                raise Exception('(%s) not in priority values'%(p))
+        self.__load_priority = priority
+        self.__parse_set_map = {
+            SUB_COMMAND_JSON_SET : self.__parse_sub_command_json_set,
+            COMMAND_JSON_SET : self.__parse_command_json_set,
+            ENVIRONMENT_SET : self.__parse_environment_set,
+            ENV_SUB_COMMAND_JSON_SET : self.__parse_env_subcommand_json_set,
+            ENV_COMMAND_JSON_SET : self.__parse_env_command_json_set
         }
         return
 
@@ -555,14 +575,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         self.__load_command_line_args('',curkey,None)
         return
 
-
-
-    def parse_command_line(self,params=None,Context=None):
-        # we input the self command line args by default
-        self.__set_command_line_self_args()
-        if params is None:
-            params = sys.argv[1:]
-        args = self.parse_args(params)
+    def __parse_sub_command_json_set(self,args):
         # now we should get the 
         # first to test all the json file for special command
         if self.__subparser and args.subcommand is not None:
@@ -573,16 +586,21 @@ class ExtArgsParse(argparse.ArgumentParser):
             if jsonfile is not None:
                 # ok we should make this parse
                 args = self.__load_jsonfile(args,args.subcommand,jsonfile,curparser)
+        return args
 
+    def __parse_command_json_set(self,args):
         # to get the total command
         if args.json is not None:
             jsonfile = args.json
             args = self.__load_jsonfile(args,'',jsonfile,None)
+        return args
 
-
+    def __parse_environment_set(self,args):
         # now get the environment value
         args = self.__set_environ_value(args)
+        return args
 
+    def __parse_env_subcommand_json_set(self,args):
         # now to check for the environment as the put file
         if self.__subparser and args.subcommand is not None:
             jsondest = '%s_json'%(args.subcommand)
@@ -594,12 +612,27 @@ class ExtArgsParse(argparse.ArgumentParser):
             if jsonfile is not None:
                 # ok we should make this parse
                 args = self.__load_jsonfile(args,args.subcommand,jsonfile,curparser)
+        return args
 
+    def __parse_env_command_json_set(self,args):
         # to get the json existed 
         jsonfile = os.getenv('EXTARGSPARSE_JSON',None)
         if jsonfile is not None:
             args = self.__load_jsonfile(args,'',jsonfile,None)
+        return args
 
+
+
+
+    def parse_command_line(self,params=None,Context=None):
+        # we input the self command line args by default
+        self.__set_command_line_self_args()
+        if params is None:
+            params = sys.argv[1:]
+        args = self.parse_args(params)
+
+        for p in self.__load_priority:
+            args = self.__parse_set_map[p](args)
 
         # set the default value
         args = self.__set_default_value(args)
@@ -1272,6 +1305,63 @@ class ExtArgsTestCase(unittest.TestCase):
         self.assertEqual(args.dpkg_dpkg,'dpkg')
         return
 
+    def test_A019(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSON'] = jsonfile
+            os.environ['DEP_JSON'] = depjsonfile
+            parser = ExtArgsParse(priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+            
+            args = parser.parse_command_line(['-p','9000','dep','--dep-string','ee','ww'])
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port, 9000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
+            self.assertEqual(args.dep_string,'ee')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+        return
 
 
 

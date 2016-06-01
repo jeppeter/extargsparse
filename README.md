@@ -503,11 +503,13 @@ subnargs = ['cc','dd']
       for sub command is for DEP_LIST for dep command --list
 
 
-* note the priority of command line is 
-   **   command input
-   **   command json file input
-   **   environment variable input _if the common args not with any _ in the flag dest ,it will start with EXTARGS_ 
-   **   environment json file input
+* note the priority of command line is  this can be change or omit by the extargsparse.ExtArgsParse(priority=[])
+   **   command input 
+   **   subcommand json file input extargsparse.SUB_COMMAND_JSON_SET
+   **   command json file input extargsparse.COMMAND_JSON_SET
+   **   environment variable input _if the common args not with any _ in the flag dest ,it will start with EXTARGS_  extargsparse.ENVIRONMENT_SET
+   **   environment subcommand json file input extargsparse.ENV_SUB_COMMAND_JSON_SET
+   **   environment json file input  extargsparse.ENV_COMMAND_JSON_SET
    **   default value input by the load string
 
 
@@ -597,7 +599,7 @@ def main():
 
     os.environ['EXTARGSPARSE_JSON'] = jsonfile
     os.environ['DEP_JSON'] = depjsonfile
-    parser = extargsparse.ExtArgsParse()
+    parser = extargsparse.ExtArgsParse(priority=[extargsparse.ENV_COMMAND_JSON_SET,extargsparse.ENVIRONMENT_SET,extargsparse.ENV_SUB_COMMAND_JSON_SET])
     parser.load_command_line_string(commandline)
     os.environ['DEP_STRING'] = depstrval
     os.environ['DEP_LIST'] = depliststr
@@ -626,15 +628,14 @@ def main():
   return
 
 if __name__ == '__main__':
-  main()
-```
+  main()```
 
 > result is
 
 ```shell
 args.verbose 3
 args.port 9000
-args.dep_list ['depenv1', 'depenv2']
+args.dep_list [u'jsonval1', u'jsonval2']
 args.dep_string ee
 args.http_visual_mode True
 args.http_url http://www.yahoo.com
