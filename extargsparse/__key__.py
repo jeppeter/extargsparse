@@ -360,6 +360,9 @@ class ExtKeyParse:
 			if not self.__isflag or self.__flagname is None or self.__type == 'args':
 				raise Exception('can not set (%s) longopt'%(self.__origkey))
 			longopt = '--'
+			if self.__type == 'bool' and self.__value :
+				# we set no
+				longopt += 'no-'
 			if len(self.__prefix) > 0 :
 				longopt += '%s_'%(self.__prefix)
 			longopt += self.__flagname
@@ -768,7 +771,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.optdest,'good_flag')
 		return
 
-	def test_A024(self):
+	def test_A023(self):
 		ok = False
 		try:
 			flags = ExtKeyParse('','$flag## flag help ##',{'prefix':'good','value':False,'nargs':2},False)
@@ -776,12 +779,12 @@ class UnitTestCase(unittest.TestCase):
 			ok = True
 		return
 
-	def test_A025(self):
+	def test_A024(self):
 		t = TypeClass(u'*')
 		self.assertEqual(str(t),'unicode')
 		return
 
-	def test_A026(self):
+	def test_A025(self):
 		flags = ExtKeyParse('dep',u'$',u'+',True)
 		self.assertEqual(flags.flagname,'$')
 		self.assertEqual(flags.prefix,'dep')
@@ -795,7 +798,7 @@ class UnitTestCase(unittest.TestCase):
 		self.__opt_fail_check(flags)
 		return
 
-	def test_A027(self):
+	def test_A026(self):
 		flags = ExtKeyParse('dep','verbose|v','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
@@ -811,7 +814,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-v')
 		return
 
-	def test_A028(self):
+	def test_A027(self):
 		flags = ExtKeyParse('','verbose|v## new help info ##','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
@@ -825,6 +828,22 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.optdest,'verbose')
 		self.assertEqual(flags.longopt,'--verbose')
 		self.assertEqual(flags.shortopt,'-v')
+		return
+
+	def test_A028(self):
+		flags = ExtKeyParse('','rollback|R## rollback not set ##',True,False)
+		self.assertEqual(flags.flagname,'rollback')
+		self.assertEqual(flags.shortflag,'R')
+		self.assertEqual(flags.prefix,'')
+		self.assertEqual(flags.type,'bool')
+		self.assertEqual(flags.value,True)
+		self.assertEqual(flags.helpinfo,' rollback not set ')
+		self.assertEqual(flags.nargs,0)
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.optdest,'rollback')
+		self.assertEqual(flags.longopt,'--no-rollback')
+		self.assertEqual(flags.shortopt,'-R')
 		return
 
 
