@@ -9,10 +9,5 @@ setup(name='extargsparse',
 	author_email='jeppeter@gmail.com',
 	license='MIT',
 	packages=['extargsparse'],
-	install_requires=[
-		'importlib',
-		'tempfile',
-		'argparse'
-	],
 	keyword = ['commandline','argparse'],
 	zip_safe=False)
