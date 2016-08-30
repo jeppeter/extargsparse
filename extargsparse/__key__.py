@@ -27,6 +27,8 @@ class TypeClass(object):
 		elif v is None:
 			# we use default string
 			self.__type = 'string'
+		elif isinstance(v,long):
+			self.__type = 'long'
 		else:
 			raise Exception('(%s)unknown type (%s)'%(v,type(v)))
 		return
@@ -844,6 +846,22 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.optdest,'rollback')
 		self.assertEqual(flags.longopt,'--no-rollback')
 		self.assertEqual(flags.shortopt,'-R')
+		return
+
+	def test_A029(self):
+		flags = ExtKeyParse('','maxval|m##max value set ##',0xffffffff,False)
+		self.assertEqual(flags.flagname,'maxval')
+		self.assertEqual(flags.shortflag,'m')
+		self.assertEqual(flags.prefix,'')
+		self.assertEqual(flags.type,'long')
+		self.assertEqual(flags.value,0xffffffff)
+		self.assertEqual(flags.helpinfo,'max value set ')
+		self.assertEqual(flags.nargs,1)
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.optdest,'maxval')
+		self.assertEqual(flags.longopt,'--maxval')
+		self.assertEqual(flags.shortopt,'-m')
 		return
 
 

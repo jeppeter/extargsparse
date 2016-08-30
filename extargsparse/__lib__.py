@@ -68,6 +68,7 @@ class IntAction(argparse.Action):
         setattr(namespace,self.dest,intval)
         return
 
+
 class _ParserCompact(object):
     pass
 
@@ -328,6 +329,7 @@ class ExtArgsParse(argparse.ArgumentParser):
             'string' : self.__load_command_line_string,
             'unicode' : self.__load_command_line_string,
             'int' : self.__load_command_line_int,
+            'long' : self.__load_command_line_int,
             'float' : self.__load_command_line_float,
             'list' : self.__load_command_line_list,
             'bool' : self.__load_command_line_bool,
