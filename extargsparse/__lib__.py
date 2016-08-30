@@ -62,7 +62,10 @@ class IntAction(argparse.Action):
 
      def __call__(self, parser, namespace, values, option_string=None):
         try:
-            intval = int(values)
+            if values.startswith('x') or values.startswith('0x'):
+                intval = int(values,16)
+            else:
+                intval = int(values)
         except:
             raise Exception('%s not valid number'%(values))
         setattr(namespace,self.dest,intval)
@@ -1396,6 +1399,17 @@ class ExtArgsTestCase(unittest.TestCase):
         self.assertEqual(args.subnargs,['ww'])
         return
 
+    def test_A021(self):
+        commandline= '''
+        {
+            "maxval|m" : 392244922
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['-m','0xffcc'])
+        self.assertEqual(args.maxval,0xffcc)
+        return
 
 
 def main():
