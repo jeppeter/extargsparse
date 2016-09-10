@@ -56,7 +56,7 @@ class Utf8Encode:
 		newlist = []
 		for k in val:
 			newk = self.__encode_utf8(k)
-			newlist.append(k)
+			newlist.append(newk)
 		return newlist
 
 	def __encode_utf8(self,val):
@@ -863,6 +863,26 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.longopt,'--maxval')
 		self.assertEqual(flags.shortopt,'-m')
 		return
+
+	def test_A030(self):
+		# no test for version 3
+		if sys.version[0] != '2':
+			return
+		flags = ExtKeyParse('',u'maxval|m',[u'maxval'],True)
+		self.assertEqual(flags.flagname,'maxval')
+		self.assertEqual(flags.shortflag,'m')
+		self.assertEqual(flags.prefix,'')
+		self.assertEqual(flags.type,'list')
+		self.assertEqual(flags.value,['maxval'])
+		self.assertEqual(flags.helpinfo,None)
+		self.assertEqual(flags.nargs,1)
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.optdest,'maxval')
+		self.assertEqual(flags.longopt,'--maxval')
+		self.assertEqual(flags.shortopt,'-m')
+		return
+
 
 
 def main():
