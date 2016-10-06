@@ -773,7 +773,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.optdest,'good_flag')
 		return
 
-	def test_A023(self):
+	def test_A024(self):
 		ok = False
 		try:
 			flags = ExtKeyParse('','$flag## flag help ##',{'prefix':'good','value':False,'nargs':2},False)
@@ -781,12 +781,12 @@ class UnitTestCase(unittest.TestCase):
 			ok = True
 		return
 
-	def test_A024(self):
+	def test_A025(self):
 		t = TypeClass(u'*')
 		self.assertEqual(str(t),'unicode')
 		return
 
-	def test_A025(self):
+	def test_A026(self):
 		flags = ExtKeyParse('dep',u'$',u'+',True)
 		self.assertEqual(flags.flagname,'$')
 		self.assertEqual(flags.prefix,'dep')
@@ -800,7 +800,7 @@ class UnitTestCase(unittest.TestCase):
 		self.__opt_fail_check(flags)
 		return
 
-	def test_A026(self):
+	def test_A027(self):
 		flags = ExtKeyParse('dep','verbose|v','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
@@ -816,7 +816,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-v')
 		return
 
-	def test_A027(self):
+	def test_A028(self):
 		flags = ExtKeyParse('','verbose|v## new help info ##','+',False)
 		self.assertEqual(flags.flagname,'verbose')
 		self.assertEqual(flags.shortflag,'v')
@@ -832,7 +832,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-v')
 		return
 
-	def test_A028(self):
+	def test_A029(self):
 		flags = ExtKeyParse('','rollback|R## rollback not set ##',True,False)
 		self.assertEqual(flags.flagname,'rollback')
 		self.assertEqual(flags.shortflag,'R')
@@ -848,7 +848,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-R')
 		return
 
-	def test_A029(self):
+	def test_A030(self):
 		flags = ExtKeyParse('','maxval|m##max value set ##',0xffffffff,False)
 		self.assertEqual(flags.flagname,'maxval')
 		self.assertEqual(flags.shortflag,'m')
@@ -864,7 +864,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.shortopt,'-m')
 		return
 
-	def test_A030(self):
+	def test_A031(self):
 		# no test for version 3
 		if sys.version[0] != '2':
 			return
