@@ -4,12 +4,13 @@
 ### simple example
 ```python
 import extargsparse
+import sys
 commandline = '''
 {
-	"verbose|v##increment verbose mode##" : "+",
-	"flag|f## flag set##" : false,
+	"verbose|v<verbosemode>##increment verbose mode##" : "+",
+	"flag|f<flagmode>## flag set##" : false,
 	"number|n" : 0,
-	"list|l" : [],
+	"list|l<listarr>" : [],
 	"string|s" : "string_var",
 	"$" : "*"
 }
@@ -25,6 +26,14 @@ def main():
     print ('list = %s'%(args.list))
     print ('string = %s'%(args.string))
     print ('args = %s'%(args.args))
+    s = parse.shell_eval_out()
+    sys.stdout.write('\n')
+    sys.stdout.write('shell output:\n')
+    sys.stdout.write('%s'%(s))
+    return
+
+if __name__ == '__main__':
+    main()
 ```
 
 > if the command line like this
@@ -36,10 +45,21 @@ def main():
 verbose = 4
 flag = True
 number = 30
-list = ['bar1','bar2']
-string = 'string_var'
-args = ['var1','var2']
-```
+list = ['bar1', 'bar2']
+string = string_var
+args = ['var1', 'var2']
+
+shell output:
+flagmode=1
+string=string_var
+declare -A args
+args[0]=var1
+args[1]=var2
+number=30
+verbosemode=4
+declare -A listarr
+listarr[0]=bar1
+listarr[1]=bar2```
 
 
 ### some complex example
@@ -410,6 +430,12 @@ subnargs = ['cc','dd']
 		'visual_mode|V' : false
 	} --http-port or -p  and --http-visual-mode or -V will set the flags ,short form it will not affected
 
+* if in flagmode , follows <.*> it will be set for shell output value
+  ** for example '$verbose|v<verbosemode>' : '+'
+    call shell_eval_out will add 
+    verbosemode=%d\n
+    in the return string see the [simple example](#simple-example)
+
 * if the subcommand follows <.*> it will call function 
   **  for example 	'dep<__main__.dep_handler>' : {
 		'list|l' : [],
@@ -519,6 +545,7 @@ subnargs = ['cc','dd']
    **  value  the default value of flag
    **  nargs it accept args "*" for any "?" 1 or 0 "+" equal or more than 1 , number is the number
    **  helpinfo for the help information
+   **  varname for the shell eval option
 
 * flag format description
    **  if the key is flag it must with format like this 

@@ -652,6 +652,61 @@ class ExtArgsParse(argparse.ArgumentParser):
                 return call_func_args(funcname,args,Context)
         return args
 
+    def __shell_eval_out_flagarray(self,args,flagarray,ismain=True):
+        s = ''
+        for flag in flagarray:
+            if flag.isflag and flag.flagname is not None:
+                if flag.type == 'args' or flag.type == 'list':
+                    if flag.flagname == '$':
+                        if ismain and self.__subparser is not None:
+                            continue
+                    s += 'declare -A %s\n'%(flag.varname)                    
+                    if flag.flagname == '$':
+                        if  not ismain:
+                            value = getattr(args,'subnargs',None)
+                        else:
+                            value = getattr(args,'args',None)
+                    else:
+                        value = getattr(args,flag.optdest,None)
+                    if value is not None:
+                        i = 0
+                        for v in value:
+                            s += '%s[%d]=%s\n'%(flag.varname,i,v)
+                            i += 1
+                else:
+                    if ismain and flag.optdest == 'json' :
+                        continue
+                    elif not ismain:
+                        finddest = '%s_json'%(args.subcommand)
+                        if flag.optdest == finddest:
+                            continue
+                    value = getattr(args,flag.optdest)
+                    if flag.type == 'bool':
+                        if value :
+                            s += '%s=1\n'%(flag.varname)
+                        else:
+                            s += '%s=0\n'%(flag.varname)
+                    else:
+                        s += '%s=%s\n'%(flag.varname,value)
+        return s
+
+    def shell_eval_out(self,params=None,Context=None):
+        args = self.parse_command_line(params,Context)
+        # now we should found out the params
+        # now to check for the type
+        # now to give the value
+        s = ''
+        s += self.__shell_eval_out_flagarray(args,self.__flags)
+        if self.__subparser is not None:
+            s += 'subcommand=%s\n'%(args.subcommand)
+            curparser = self.__find_subparser_inner(args.subcommand)
+            assert(curparser is not None)
+            s += self.__shell_eval_out_flagarray(args,curparser.flags,False)
+        return s
+
+
+
+
 def call_args_function(args,context):
     if hasattr(args,'subcommand'):
         context.has_called_args = args.subcommand
@@ -1409,6 +1464,102 @@ class ExtArgsTestCase(unittest.TestCase):
         parser.load_command_line_string(commandline)
         args = parser.parse_command_line(['-m','0xffcc'])
         self.assertEqual(args.maxval,0xffcc)
+        return
+
+    def __has_line(self,sarr,s):
+        ok = False
+        for nl in sarr:
+            l = nl.rstrip('\r\n')
+            if s == l:
+                ok = True
+                break
+        return ok
+
+    def __line_prefix(self,sarr,s):
+        ok = False
+        for nl in sarr:
+            l = nl.rstrip('\r\n')
+            if l.startswith(s):
+                ok = True
+                break
+        return ok
+
+
+    def __check_value_common(self,s,key,value):
+        sarr = re.split('\n',s)
+        ok = self.__has_line(sarr,'%s=%s'%(key,value))
+        self.assertEqual(ok,True)
+        return
+    
+
+    def __check_value_list(self,s,key,value):
+        sarr = re.split('\n',s)
+        ok = self.__has_line(sarr,'declare -A %s'%(key))
+        self.assertEqual(ok,True)
+        if len(value) == 0:
+            # now we should get the 
+            ok = self.__line_prefix(sarr,'%s[%d]='%(key,0))
+            self.assertEqual(ok,False)
+        else:
+            i = 0
+            for v in value:
+                ok = self.__has_line(sarr,'%s[%d]=%s'%(key,i,v))
+                self.assertEqual(ok,True)
+                i += 1
+            ok = self.__line_prefix(sarr,'%s[%d]='%(key,i))
+            self.assertEqual(ok,False)
+        return
+
+    def test_A022(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "port|p" : 3000
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000'])
+        self.__check_value_common(s,'port',5000)
+        self.__check_value_common(s,'verbose',4)
+        self.__check_value_list(s,'args',[])
+        return
+
+    def test_A023(self):
+        commandline='''
+        {
+            "$verbose|v<verbosemode>" : "+",
+            "port|p<portnum>" : 7000
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000'])
+        self.__check_value_common(s,'portnum',5000)
+        self.__check_value_common(s,'verbosemode',4)
+        self.__check_value_list(s,'args',[])
+        return
+
+    def test_A024(self):
+        commandline='''
+        {
+            "$verbose|v<verbosemode>" : "+",
+            "port|p<portnum>" : 7000,
+            "dep" : {
+                "http" : true,
+                "age"  : 50,
+                "$" : "+"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        self.__check_value_common(s,'portnum',5000)
+        self.__check_value_common(s,'verbosemode',4)
+        self.__check_value_common(s,'dep_http',1)
+        self.__check_value_common(s,'dep_age',50)
+        self.__check_value_list(s,'subnargs',['cc','dd'])
         return
 
 
