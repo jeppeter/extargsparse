@@ -11,6 +11,10 @@ import importlib
 import tempfile
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import __key__ as keyparse
+if sys.version[0] == '2':
+    import StringIO
+else:
+    import io as StringIO
 
 COMMAND_SET = 10
 SUB_COMMAND_JSON_SET = 20
@@ -19,6 +23,8 @@ ENVIRONMENT_SET = 40
 ENV_SUB_COMMAND_JSON_SET = 50
 ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
+
+extargs_shell_out_mode=0
 
 def set_attr_args(self,args,prefix):
     if not issubclass(args.__class__,argparse.Namespace):
@@ -29,6 +35,7 @@ def set_attr_args(self,args,prefix):
     return
 
 def call_func_args(funcname,args,Context):
+    global extargs_shell_out_mode
     mname = '__main__'
     fname = funcname
     try:
@@ -49,7 +56,8 @@ def call_func_args(funcname,args,Context):
             if hasattr(val,'__call__'):
                 val(args,Context)
                 return args
-    sys.stderr.write('can not call %s\n'%(funcname))
+    if extargs_shell_out_mode == 0:
+        sys.stderr.write('can not call %s\n'%(funcname))
     return args
 
 
@@ -107,6 +115,21 @@ class FloatAction(argparse.Action):
 class ExtArgsParse(argparse.ArgumentParser):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
+    def error(self,message):
+        global extargs_shell_out_mode
+        if extargs_shell_out_mode == 0:
+            s = 'parse command error\n'
+            s += '    %s'%(message)
+            sys.stderr.write('%s'%(s))
+        else:
+            s = ''
+            s += 'cat >&2 <<EXTARGSEOF\n'
+            s += 'parse command error\n    %s\n'%(message)
+            s += 'EXTARGSEOF\n'
+            s += 'exit 3\n'
+            sys.stdout.write('%s'%(s))
+        sys.exit(3)
+        return
     def __get_help_info(self,keycls):
         helpinfo = ''
         if keycls.type == 'bool':
@@ -627,6 +650,22 @@ class ExtArgsParse(argparse.ArgumentParser):
             args = self.__load_jsonfile(args,'',jsonfile,None)
         return args
 
+    def __check_help_options(self,params):
+        showhelp = False
+        for s in params:
+            if s == '--':
+                break
+            elif s.startswith('--'):
+                if s == '--help':
+                    showhelp = True
+                    break
+            elif s.startswith('-'):
+                if 'h' in s:
+                    showhelp = True
+                    break
+        if not showhelp:
+            return None
+        return self.__print_out_help()
 
 
 
@@ -635,6 +674,10 @@ class ExtArgsParse(argparse.ArgumentParser):
         self.__set_command_line_self_args()
         if params is None:
             params = sys.argv[1:]
+
+        s = self.__check_help_options(params)
+        if s is not None:
+            return s
         args = self.parse_args(params)
 
         for p in self.__load_priority:
@@ -652,6 +695,24 @@ class ExtArgsParse(argparse.ArgumentParser):
                 return call_func_args(funcname,args,Context)
         return args
 
+    def __print_out_help(self):
+        global extargs_shell_out_mode
+        s = ''
+        sio = StringIO.StringIO()
+        self.print_help(sio)
+        if extargs_shell_out_mode == 0:
+            s += sio.getvalue()
+            sys.stdout.write(s)
+            sys.exit(0)
+        else:
+            s +=  'cat << EXTARGSEOF\n'
+            s +=  '%s\n'%(sio.getvalue())
+            s += 'EXTARGSEOF\n'
+            s += 'exit 0\n'
+        return s
+
+
+
     def __shell_eval_out_flagarray(self,args,flagarray,ismain=True):
         s = ''
         for flag in flagarray:
@@ -660,7 +721,7 @@ class ExtArgsParse(argparse.ArgumentParser):
                     if flag.flagname == '$':
                         if ismain and self.__subparser is not None:
                             continue
-                    s += 'declare -A %s\n'%(flag.varname)                    
+                    s += 'declare -A %s\n'%(flag.varname)
                     if flag.flagname == '$':
                         if  not ismain:
                             value = getattr(args,'subnargs',None)
@@ -691,17 +752,28 @@ class ExtArgsParse(argparse.ArgumentParser):
         return s
 
     def shell_eval_out(self,params=None,Context=None):
+        global extargs_shell_out_mode
+        extargs_shell_out_mode = 1
         args = self.parse_command_line(params,Context)
+        extargs_shell_out_mode = 0
+        if isinstance(args,str):
+            # that is help information
+            return args
         # now we should found out the params
         # now to check for the type
         # now to give the value
         s = ''
         s += self.__shell_eval_out_flagarray(args,self.__flags)
-        if self.__subparser is not None:
-            s += 'subcommand=%s\n'%(args.subcommand)
+        if self.__subparser is not None:            
             curparser = self.__find_subparser_inner(args.subcommand)
             assert(curparser is not None)
+            keycls = curparser.typeclass
+            if keycls.function is not None:
+                s += '%s=%s\n'%(keycls.function,args.subcommand)
+            else:
+                s += 'subcommand=%s\n'%(args.subcommand)
             s += self.__shell_eval_out_flagarray(args,curparser.flags,False)
+        self.__logger.info('shell_out\n%s'%(s))
         return s
 
 
@@ -1510,6 +1582,18 @@ class ExtArgsTestCase(unittest.TestCase):
             self.assertEqual(ok,False)
         return
 
+    def __check_not_list(self,s,key):
+        sarr = re.split('\n',s)
+        ok = self.__has_line(sarr,'delcare -A %s'%(key))
+        self.assertEqual(ok,False)
+        return
+
+    def __check_not_common(self,s,key):
+        sarr = re.split('\n',s)
+        ok = self.__line_prefix(sarr,'%s='%(key))
+        self.assertEqual(ok,False)
+        return
+
     def test_A022(self):
         commandline= '''
         {
@@ -1523,6 +1607,8 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_common(s,'port',5000)
         self.__check_value_common(s,'verbose',4)
         self.__check_value_list(s,'args',[])
+        self.__check_not_list(s,'subnargs')
+        self.__check_not_common(s,'subcommand')
         return
 
     def test_A023(self):
@@ -1560,6 +1646,28 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_common(s,'dep_http',1)
         self.__check_value_common(s,'dep_age',50)
         self.__check_value_list(s,'subnargs',['cc','dd'])
+        return
+
+    def test_A025(self):
+        commandline='''
+        {
+            "$verbose|v<verbosemode>" : "+",
+            "port|p<portnum>" : 7000,
+            "dep<CHOICECOMMAND>" : {
+                "http" : true,
+                "age"  : 50,
+                "$<depargs>" : "+"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        self.__check_value_common(s,'portnum',5000)
+        self.__check_value_common(s,'verbosemode',4)
+        self.__check_value_common(s,'dep_http',1)
+        self.__check_value_common(s,'dep_age',50)
+        self.__check_value_list(s,'depargs',['cc','dd'])
         return
 
 

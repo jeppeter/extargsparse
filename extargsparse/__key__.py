@@ -992,6 +992,22 @@ class UnitTestCase(unittest.TestCase):
 		self.__opt_fail_check(flags)
 		return
 
+	def test_A035(self):
+		flags = ExtKeyParse('prefix','$<newargs>','+',False)
+		self.assertEqual(flags.flagname,'$')
+		self.assertEqual(flags.prefix,'prefix')
+		self.assertEqual(flags.value,None)
+		self.assertEqual(flags.type,'args')
+		self.assertEqual(flags.helpinfo,None)
+		self.assertEqual(flags.nargs,'+')
+		self.assertEqual(flags.shortflag,None)
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.varname,'newargs')
+		self.__opt_fail_check(flags)
+		return
+
+
 
 def main():
 	if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:

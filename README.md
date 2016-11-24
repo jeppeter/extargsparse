@@ -26,7 +26,7 @@ def main():
     print ('list = %s'%(args.list))
     print ('string = %s'%(args.string))
     print ('args = %s'%(args.args))
-    s = parse.shell_eval_out()
+    s = parser.shell_eval_out()
     sys.stdout.write('\n')
     sys.stdout.write('shell output:\n')
     sys.stdout.write('%s'%(s))
@@ -59,7 +59,8 @@ number=30
 verbosemode=4
 declare -A listarr
 listarr[0]=bar1
-listarr[1]=bar2```
+listarr[1]=bar2
+```
 
 
 ### some complex example
@@ -402,6 +403,53 @@ string = 's_var'
 subnargs = ['cc','dd']
 ```
 
+### shellout example
+```python
+import extargsparse
+import sys
+commandline = '''
+{
+  "verbose|v<verbosemode>##increment verbose mode##" : "+",
+  "flag|f<flagmode>## flag set##" : false,
+  "number|n" : 0,
+  "list|l<listarr>" : [],
+  "string|s" : "string_var",
+  "dep<CHOICECOMMAND>" : {
+      "$<DEPAPPS>" : "+"
+  }
+}
+'''
+
+def main():
+    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    parser.load_command_line_string(commandline)
+    s = parser.shell_eval_out()
+    sys.stdout.write('shell output:\n')
+    sys.stdout.write('%s'%(s))
+    return
+
+if __name__ == '__main__':
+    main()
+```
+
+> if the command line like this
+> python test.py -vvv dep ccc
+
+> result is like this
+
+```shell
+shell output:
+flagmode=0
+string=string_var
+number=0
+verbosemode=3
+declare -A listarr
+CHOICECOMMAND=dep
+declare -A DEPAPPS
+DEPAPPS[0]=ccc
+```
+
+
 ## Rules
 
 * all key is with value of dict will be flag
@@ -443,6 +491,7 @@ subnargs = ['cc','dd']
 		'$' : '+'
 	}  the dep_handler will call __main__ it is the main package ,other packages will make the name of it ,and the 
 	   args is the only one add
+  if you just call shell_eval_out it will make the function name as the variable  to set for the commandname see [shellout example](#shellout-example)
 
 * special flag '$' is for args in main command '$' for subnargs in sub command
 
