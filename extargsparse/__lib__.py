@@ -713,15 +713,24 @@ class ExtArgsParse(argparse.ArgumentParser):
 
 
 
-    def __shell_eval_out_flagarray(self,args,flagarray,ismain=True):
+    def __shell_eval_out_flagarray(self,args,flagarray,ismain=True,curparser=None):
         s = ''
         for flag in flagarray:
             if flag.isflag and flag.flagname is not None:
                 if flag.type == 'args' or flag.type == 'list':
-                    if flag.flagname == '$':
-                        if ismain and self.__subparser is not None:
+                    if flag.flagname == '$' :
+                        if curparser is None and self.__subparser is not None:
                             continue
-                    s += 'declare -A %s\n'%(flag.varname)
+                        elif curparser is not None and curparser.typeclass.cmdname != args.subcommand:
+                            # we do not output args
+                            if flag.varname != 'subnargs':
+                                # to not declare this one
+                                s += 'unset %s\n'%(flag.varname)
+                                s += 'declare -A -g %s\n'%(flag.varname)
+                            continue
+                    # make the global variable access
+                    s += 'unset %s\n'%(flag.varname)
+                    s += 'declare -A -g %s\n'%(flag.varname)
                     if flag.flagname == '$':
                         if  not ismain:
                             value = getattr(args,'subnargs',None)
@@ -737,8 +746,8 @@ class ExtArgsParse(argparse.ArgumentParser):
                 else:
                     if ismain and flag.optdest == 'json' :
                         continue
-                    elif not ismain:
-                        finddest = '%s_json'%(args.subcommand)
+                    elif curparser is not None:
+                        finddest = '%s_json'%(curparser.typeclass.cmdname)
                         if flag.optdest == finddest:
                             continue
                     value = getattr(args,flag.optdest)
@@ -772,7 +781,8 @@ class ExtArgsParse(argparse.ArgumentParser):
                 s += '%s=%s\n'%(keycls.function,args.subcommand)
             else:
                 s += 'subcommand=%s\n'%(args.subcommand)
-            s += self.__shell_eval_out_flagarray(args,curparser.flags,False)
+            for curparser in self.__cmdparsers:
+                s += self.__shell_eval_out_flagarray(args,curparser.flags,False,curparser)
         self.__logger.info('shell_out\n%s'%(s))
         return s
 
@@ -1566,8 +1576,9 @@ class ExtArgsTestCase(unittest.TestCase):
 
     def __check_value_list(self,s,key,value):
         sarr = re.split('\n',s)
-        ok = self.__has_line(sarr,'declare -A %s'%(key))
+        ok = self.__has_line(sarr,'declare -A -g %s'%(key))
         self.assertEqual(ok,True)
+        ok = self.__has_line(sarr,'unset %s'%(key))
         if len(value) == 0:
             # now we should get the 
             ok = self.__line_prefix(sarr,'%s[%d]='%(key,0))
@@ -1609,6 +1620,7 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_list(s,'args',[])
         self.__check_not_list(s,'subnargs')
         self.__check_not_common(s,'subcommand')
+        self.__check_not_common(s,'json')
         return
 
     def test_A023(self):
@@ -1624,6 +1636,7 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_list(s,'args',[])
+        self.__check_not_common(s,'json')
         return
 
     def test_A024(self):
@@ -1646,6 +1659,8 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_common(s,'dep_http',1)
         self.__check_value_common(s,'dep_age',50)
         self.__check_value_list(s,'subnargs',['cc','dd'])
+        self.__check_not_common(s,'json')
+        self.__check_not_common(s,'dep_json')
         return
 
     def test_A025(self):
@@ -1668,7 +1683,43 @@ class ExtArgsTestCase(unittest.TestCase):
         self.__check_value_common(s,'dep_http',1)
         self.__check_value_common(s,'dep_age',50)
         self.__check_value_list(s,'depargs',['cc','dd'])
+        self.__check_not_common(s,'json')
+        self.__check_not_common(s,'dep_json')
         return
+
+    def test_A026(self):
+        commandline='''
+        {
+            "$verbose|v<verbosemode>" : "+",
+            "port|p<portnum>" : 7000,
+            "dep<CHOICECOMMAND>" : {
+                "http" : true,
+                "age"  : 50,
+                "$<depargs>" : "+"
+            },
+            "rdep<CHOICECOMMAND>" : {
+                "http" : true,
+                "age" : 48,
+                "$<rdepargs>" : "+"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        self.__check_value_common(s,'portnum',5000)
+        self.__check_value_common(s,'verbosemode',4)
+        self.__check_value_common(s,'dep_http',1)
+        self.__check_value_common(s,'dep_age',50)
+        self.__check_value_list(s,'depargs',['cc','dd'])
+        self.__check_value_list(s,'rdepargs',[])
+        self.__check_value_common(s,'rdep_http',1)
+        self.__check_value_common(s,'rdep_age',48)
+        self.__check_not_common(s,'json')
+        self.__check_not_common(s,'dep_json')
+        self.__check_not_common(s,'rdep_json')
+        return
+
 
 
 def main():
