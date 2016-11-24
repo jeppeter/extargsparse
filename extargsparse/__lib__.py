@@ -1727,6 +1727,39 @@ class ExtArgsTestCase(unittest.TestCase):
         return
 
 
+    def test_A027(self):
+        commandline='''
+        {
+            "$verbose|v<verbosemode>" : "+",
+            "port|p<portnum>" : 7000,
+            "dep<CHOICECOMMAND>" : {
+                "http" : true,
+                "age"  : 50,
+                "$<depargs>" : "+"
+            },
+            "rdep<CHOICECOMMAND>" : {
+                "http" : true,
+                "age" : 48,
+                "$<rdepargs>" : "+"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc ee','dd'])
+        self.__check_value_common(s,'portnum',5000)
+        self.__check_value_common(s,'verbosemode',4)
+        self.__check_value_common(s,'dep_http',1)
+        self.__check_value_common(s,'dep_age',50)
+        self.__check_value_list(s,'depargs',['cc ee','dd'])
+        self.__check_value_list(s,'rdepargs',[])
+        self.__check_value_common(s,'rdep_http',1)
+        self.__check_value_common(s,'rdep_age',48)
+        self.__check_not_common(s,'json')
+        self.__check_not_common(s,'dep_json')
+        self.__check_not_common(s,'rdep_json')
+        return
+
 
 def main():
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
