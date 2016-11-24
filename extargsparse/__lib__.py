@@ -741,7 +741,10 @@ class ExtArgsParse(argparse.ArgumentParser):
                     if value is not None:
                         i = 0
                         for v in value:
-                            s += '%s[%d]=%s\n'%(flag.varname,i,v)
+                            if isinstance(v,str):
+                                s += '%s[%d]=\'%s\'\n'%(flag.varname,i,v)
+                            else:
+                                s += '%s[%d]=%s\n'%(flag.varname,i,v)
                             i += 1
                 else:
                     if ismain and flag.optdest == 'json' :
@@ -757,7 +760,10 @@ class ExtArgsParse(argparse.ArgumentParser):
                         else:
                             s += '%s=0\n'%(flag.varname)
                     else:
-                        s += '%s=%s\n'%(flag.varname,value)
+                        if flag.type == 'string' :
+                            s += '%s=\'%s\'\n'%(flag.varname,value)
+                        else:
+                            s += '%s=%s\n'%(flag.varname,value)
         return s
 
     def shell_eval_out(self,params=None,Context=None):
@@ -1586,7 +1592,7 @@ class ExtArgsTestCase(unittest.TestCase):
         else:
             i = 0
             for v in value:
-                ok = self.__has_line(sarr,'%s[%d]=%s'%(key,i,v))
+                ok = self.__has_line(sarr,'%s[%d]=\'%s\''%(key,i,v))
                 self.assertEqual(ok,True)
                 i += 1
             ok = self.__line_prefix(sarr,'%s[%d]='%(key,i))
