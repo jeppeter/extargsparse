@@ -54,9 +54,171 @@ class IntAction(argparse.Action):
         setattr(namespace,self.dest,intval)
         return
 
+#####################################
+##
+##  parser.opts = []
+##  parser.cmdname = ''
+##  parser.subcommands = []
+##  parser.callfunction = None
+##  parser.helpinfo  = None
+##  parser.keycls = keycls
+#####################################
+
+class _HelpSize(object):
+    sizewords = ['optnamesize','optexprsize','opthelpsize','cmdnamesize','cmdhelpsize']
+    def __init__(self):
+        self.optnamesize = 0
+        self.optexprsize = 0
+        self.opthelpsize = 0
+        self.cmdnamesize = 0
+        self.cmdhelpsize = 0
+        return
+
+    def __setattr__(self,name,value):
+        if name in self.__class__.sizewords:
+            if value >= getattr(self,name,0):
+                self.__dict__[name] = value
+            return
+        self.__dict__[name] = value
+        return
+
+    def __str__(self):
+        s = '{'
+        i = 0
+        for n in sizewords:
+            if i > 0:
+                s += ','
+            s += '%s=%d'%(n,getattr(self,n,0))
+            i += 1
+        s += '}'
+        return s
+
 
 class _ParserCompact(object):
-    pass
+    def __get_help_info(self,keycls):
+        helpinfo = ''
+        if keycls.type == 'bool':
+            if keycls.value :
+                helpinfo += '%s set false default(True)'%(keycls.optdest)
+            else:
+                helpinfo += '%s set true default(False)'%(keycls.optdest)
+        elif keycls.type == 'string' and keycls.value == '+':
+            if keycls.isflag:
+                helpinfo += '%s inc'%(keycls.optdest)
+            else:
+                raise Exception('cmd(%s) can not set value(%s)'%(keycls.cmdname,keycls.value))
+        else:
+            if keycls.isflag:
+                helpinfo += '%s set default(%s)'%(keycls.optdest,keycls.value)
+            else:
+                helpinfo += '%s command exec'%(keycls.cmdname)
+        if keycls.helpinfo:
+            helpinfo = keycls.helpinfo
+        return helpinfo
+
+    def __init__(self,keycls=None):
+        if keycls is not None:
+            assert(keycls.iscmd)
+            self.keycls = keycls
+            self.cmdname = keycls.cmdname
+            self.cmdopts = []
+            self.subcommands = []
+            self.helpinfo = '%s handler'%(self.cmdname)
+            if keycls.helpinfo is not None:
+                self.helpinfo = keycls.helpinfo
+            self.callfunction = None
+            if keycls.function is not None:
+                self.callfunction = None
+        else:
+            self.keycls = None
+            self.cmdname = ""
+            self.cmdopts = []
+            self.helpinfo = None
+            self.callfunction = None
+        return
+
+    def __get_opt_help(self,opt):
+        lname = opt.longopt
+        sname = opt.shortopt
+        optname = lname 
+        if sname is not None:
+            optname += '|%s'%(sname)
+        optexpr = ''
+        if opt.type != 'bool' and opt.type != 'args' and opt.type != 'dict':
+            optexpr = opt.varname
+            optexpr = optexpr.replace('-','_')
+        opthelp = self.__get_help_info(opt)
+        return optname,optexpr,opthelp
+
+    # return optnamesize optexprsize opthelpsize
+    #  cmdnamesize cmdhelpsize
+    def get_help_size(self,helpsize=None,recursive=-1):
+        if helpsize is None:
+            helpsize = _HelpSize()
+        cmdname,cmdhelp = self.__get_cmd_help(self)
+        helpsize.cmdnamesize = len(cmdname)
+        helpsize.cmdhelpsize = len(cmdhelp)
+        for opt in self.cmdopts:
+            optname,optexpr,opthelp = self.__get_opt_help(opt)
+            helpsize.optnamesize = len(optname)
+            helpsize.optexprsize = len(optexpr)
+            helpsize.opthelpsize = len(opthelp)
+
+        if recursive != 0:
+            for cmd in self.subcommands:
+                if recursively > 0:
+                    helpsize = cmd.get_help_size(helpsize,recursive-1)
+                else:
+                    helpsize = cmd.get_help_size(helpsize,recursive)
+        return helpsize
+
+    def __get_cmd_help(self,cmd):
+        cmdname = ''
+        cmdhelp = ''
+        if cmd.cmdname is not None:
+            cmdname = '%s'%(cmd.cmdname)
+        if cmd.helpinfo is not None:
+            cmdhelp = '%s'%(cmd.helpinfo)
+        return cmdname,cmdhelp
+
+
+    def get_help_info(self,helpsize=None,parentcmds=[],whole=False):
+        if helpsize is None:
+            helpsize = self.get_help_size()
+        s = ''
+        s += '%s'%(sys.argv[0])
+        if len(parentcmds) > 0:
+            for c in parentcmds:
+                    s += ' %s'%(c.cmdname)
+        s += ' %s'%(self.cmdname)
+        if len(self.cmdopts) > 0:
+            s += ' [OPTIONS]'
+        if len(self.subcommands) > 0:
+            s += ' [SUBCOMMANDS]'
+        for args in self.cmdopts:
+            if args.flagname == '$':
+                if args.nargs == '+' or args.nargs > 1:
+                    s += ' args...'
+                elif args.nargs == '*':
+                    s += ' [args...]'
+                elif args.nargs = '?' or args.nargs == 1:
+                    s += ' arg'
+                break
+        s += '\n'
+        if len(self.cmdopts) > 0:
+            s += '[OPTIONS]\n'
+            for opt in self.cmdopts:
+                optname,optexpr,opthelp = self.__get_opt_help(opt)
+                s += '\t%-*s %-*s %-*s\n'%(helpsize.optnamesize,optname,
+                    helpsize.optexprsize,optexpr,
+                    helpsize.opthelpsize,opthelp)
+        if len(self.subcommands)>0:
+            s += '[SUBCOMMANDS]\n'
+            for cmd in self.subcommands:
+                cmdname,cmdhelp = self.__get_cmd_help(cmd)
+                s += '\t%-*s %-*s\n'%(helpsize.cmdnamesize,cmdname,helpsize.cmdhelpsize,cmdhelp)
+        return s
+
 
 class ArrayAction(argparse.Action):
      def __init__(self, option_strings, dest, nargs=1, **kwargs):
@@ -97,7 +259,6 @@ class ExtArgsParse(argparse.ArgumentParser):
         if len(self.__output_mode) > 0:
             if self.__output_mode[-1] == 'bash' or self.__output_mode[-1] == 'c':
                 return args
-
         try:
             if '.' not in funcname:
                 m = importlib.import_module(mname)
@@ -119,6 +280,57 @@ class ExtArgsParse(argparse.ArgumentParser):
         self.__logger.error('can not call %s'%(funcname))
         return args
 
+    def __true_action(self,args,dest,value):
+        setattr(args,dest,True)
+        return args
+
+    def __false_action(self,args,dest,value):
+        setattr(args,dest,False)
+        return args
+
+    def __append_action(self,args,dest,value):
+        sarr = getattr(args,dest,None)
+        if sarr is None:
+            sarr = []
+        sarr.append(value)
+        setattr(args,dest,sarr)
+        return args
+
+    def __string_action(self,args,dest,value):
+        setattr(args,dest,value)
+        return args
+
+    def __jsonfile_action(self,args,dest,value):
+        return self.__string_action(args,dest,value)
+
+    def __int_action(self,args,dest,value):
+        try:
+            base = 10
+            if value.startswith('0x') or value.startswith('0X'):
+                value = value[2:]
+                base = 16
+            elif value.startswith('x') or value.startswith('X'):
+                base = value[1:]
+                base = 16
+            num = int(value,base)
+            setattr(args,dest,num)
+        except:
+            msg = '%s not valid int'%(value)
+            self.error(msg)
+            raise Exception(msg)
+        return args
+
+    def __float_action(self,args,dest,value):
+        try:
+            num = float(value)
+            setattr(args,dest,num)
+        except:
+            msg = 'can not parse %s'%(value)
+            self.error(msg)
+            raise Exception(msg)
+        return args
+
+
     def error(self,message):
         output = False
         if len(self.__output_mode) > 0:
@@ -130,191 +342,120 @@ class ExtArgsParse(argparse.ArgumentParser):
                 s += 'exit 3\n'
                 sys.stdout.write('%s'%(s))
                 output = True
-
+                sys.exit(3)
         if not output :
             s = 'parse command error\n'
             s += '    %s'%(message)
             sys.stderr.write('%s'%(s))
-        sys.exit(3)
         return
-
-    def __get_help_info(self,keycls):
-        helpinfo = ''
-        if keycls.type == 'bool':
-            if keycls.value :
-                helpinfo += '%s set false default(True)'%(keycls.optdest)
-            else:
-                helpinfo += '%s set true default(False)'%(keycls.optdest)
-        elif keycls.type == 'string' and keycls.value == '+':
-            if keycls.isflag:
-                helpinfo += '%s inc'%(keycls.optdest)
-            else:
-                raise Exception('cmd(%s) can not set value(%s)'%(keycls.cmdname,keycls.value))
-        else:
-            if keycls.isflag:
-                helpinfo += '%s set default(%s)'%(keycls.optdest,keycls.value)
-            else:
-                helpinfo += '%s command exec'%(keycls.cmdname)
-        if keycls.helpinfo:
-            helpinfo = keycls.helpinfo
-        return helpinfo
 
     def __check_flag_insert(self,keycls,curparser=None):
         if curparser :
-            for k in curparser.flags:
+            for k in curparser[-1].cmdopts:
+                if k.flagname != '$' and keycls.flagname != '$':                    
+                    if k.optdest == keycls.optdest:
+                        return False
+                elif k.flagname == '$' and keycls.flagname == '$':
+                    return False
+            # to check for all cmdopts
+            for cmd in curparser:
+                for k in cmd.cmdopts:
+                    if k.flagname != '$' and keycls.flagname != '$':
+                        if k.optdest == keycls.optdest:
+                            return False
+            curparser[-1].cmdopts.append(keycls)
+        else:
+            for k in self.__maincmd.cmdopts:
                 if k.flagname != '$' and keycls.flagname != '$':
                     if k.optdest == keycls.optdest:
                         return False
-                elif k.flagname == keycls.flagname:
+                elif k.flagname == '$' and keycls.flagname == '$':
                     return False
-            curparser.flags.append(keycls)
-        else:
-            for k in self.__flags:
-                if (k.flagname != '$') and (keycls.flagname != '$'):
-                    if k.optdest == keycls.optdest:
-                        return False
-                elif k.flagname == keycls.flagname:
-                    return False
-            self.__flags.append(keycls)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __check_flag_insert_mustsucc(self,keycls,curparser=None):
         valid = self.__check_flag_insert(keycls,curparser)
         if not valid:
-            cmdname = 'main'
+            cmdname = ''
             if curparser:
-                cmdname = curparser.cmdname
+                i = 0
+                for c in curparser:
+                    if i > 0:
+                        cmdname += '.'
+                    cmdname += c.cmdname
+                    i += 1
             raise Exception('(%s) already in command(%s)'%(keycls.flagname,cmdname))
         return
 
     def __load_command_line_string(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-        helpinfo = self.__get_help_info(keycls)
-        if shortopt:
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_count(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-        helpinfo = self.__get_help_info(keycls)
-        if shortopt:
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action='count',help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,action='count',help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
 
     def __load_command_line_int(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        helpinfo = self.__get_help_info(keycls)
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-
-        if shortopt :
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action=IntAction,help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,action=IntAction,help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
 
     def __load_command_line_float(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        helpinfo = self.__get_help_info(keycls)
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-
-        if shortopt :
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action=FloatAction,help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,action=FloatAction,help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_list(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        helpinfo = self.__get_help_info(keycls)
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-        if shortopt :
-            putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action=ArrayAction,help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            putparser.add_argument(longopt,dest=optdest,default=None,action=ArrayAction,help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_bool(self,prefix,keycls,curparser=None):
         self.__check_flag_insert_mustsucc(keycls,curparser)
-        longopt = keycls.longopt
-        shortopt = keycls.shortopt
-        optdest = keycls.optdest
-        helpinfo = self.__get_help_info(keycls)
-        putparser = self
-        if curparser is not None:
-            putparser = curparser.parser
-        if keycls.value :
-            if shortopt :
-                putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action='store_false',help=helpinfo)
-            else:
-                putparser.add_argument(longopt,dest=optdest,default=None,action='store_false',help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
         else:
-            if shortopt :
-                putparser.add_argument(shortopt,longopt,dest=optdest,default=None,action='store_true',help=helpinfo)
-            else:
-                putparser.add_argument(longopt,dest=optdest,default=None,action='store_true',help=helpinfo)
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_args(self,prefix,keycls,curparser=None):
         valid = self.__check_flag_insert(keycls,curparser)
         if not valid :
             return False
-        putparser = self
-        optdest = 'args'
-        if curparser:
-            putparser = curparser.parser
-            optdest = 'subnargs'
-        helpinfo = '%s set '%(optdest)
-        if keycls.helpinfo:
-            helpinfo = keycls.helpinfo
-        if keycls.nargs != 0:
-            #logging.info('optdest %s'%(optdest))
-            putparser.add_argument(optdest,metavar=optdest,type=str,nargs=keycls.nargs,help=helpinfo)
+        if curparser :
+            curparser[-1].cmdopts.append(keycls)
+        else:
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_jsonfile(self,keycls,curparser=None):
         valid = self.__check_flag_insert(keycls,curparser)
         if not valid:
             return False
-        putparser = self
         if curparser :
-            putparser = curparser.parser
-        longopt = keycls.longopt
-        optdest = keycls.optdest
-        helpinfo = self.__get_help_info(keycls)
-        putparser.add_argument(longopt,dest=optdest,action='store',default=None,help=helpinfo)
+            curparser[-1].cmdopts.append(keycls)
+        else:
+            self.__maincmd.cmdopts.append(keycls)
         return True
 
     def __load_command_line_json_added(self,curparser=None):
@@ -322,6 +463,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         key = 'json##json input file to get the value set##'
         value = None
         if curparser :
+            # now we should find from the 
             prefix = curparser.cmdname
         keycls = keyparse.ExtKeyParse(prefix,key,value,True)
         return self.__load_command_line_jsonfile(keycls,curparser)
@@ -356,9 +498,7 @@ class ExtArgsParse(argparse.ArgumentParser):
             handler.setFormatter(formatter)
             self.__logger.addHandler(handler)
             self.__logger.setLevel(loglvl)
-        self.__subparser = None
-        self.__cmdparsers = []
-        self.__flags = []
+        self.__maincmd = _ParserCompact(None)
         self.__output_mode = []
         self.__load_command_map = {
             'string' : self.__load_command_line_string,
@@ -386,27 +526,73 @@ class ExtArgsParse(argparse.ArgumentParser):
         }
         return
 
-    def __find_subparser_inner(self,name):
-        for k in self.__cmdparsers:
-            if k.cmdname == name:
-                return k
+    def __format_cmdname_path(self,curparser=None):
+        cmdname = ''
+        if curparser is not None:
+            i = 0
+            for c in curparser:
+                if i > 0:
+                    cmdname += '.'
+                cmdname += c.cmdname
+        return cmdname
+
+    def __find_commands_in_path(self,cmdname,curparser=None):
+        sarr = re.split('\.',cmdname)
+        commands = []
+        i = 0
+        if self.__maincmd is not None:
+            commands.append(slef.__maincmd)
+        while i <= len(sarr) and len(cmdname) > 0:
+            if i == 0:
+                pass
+            else:
+                curcommand = self.__find_command_inner(sarr[i-1],commands)
+                if curcommand is None:
+                    break
+                commands.append(curcommand)
+            i += 1
+        return commands
+
+
+    def __find_command_inner(self,name,curparser=None):
+        sarr = re.split('\.',name)
+        curroot = self.__maincmd
+        nextparsers = []
+        if curparser is not None:
+            nextparsers = curparser
+            curroot = curparser[-1]
+        if len(sarr) > 1:
+            nextparsers.append(curroot)
+            for c in curroot.subcommands:
+                if c.cmdname == sarr[0]:
+                    nextparsers = []
+                    if curparser is not None:
+                        nextparsers = curparser
+                    nextparsers.append(c)
+                    return self.__find_command_inner('.'.join(sarr[1:]),nextparsers)
+        else:
+            for c in curroot.subcommands:
+                if c.cmdname == sarr[0]:
+                    return c
         return None
 
 
-    def __get_subparser_inner(self,keycls):
-        cmdparser = self.__find_subparser_inner(keycls.cmdname)
+    def __get_subparser_inner(self,keycls,curparser=None):
+        cmdname = ''
+        parentname = self.__format_cmdname_path(curparser)
+        cmdname += parentname
+        if len(cmdname) > 0:
+            cmdname += '.'
+        cmdname += keycls.cmdname
+        cmdparser = self.__find_subparser_inner(cmdname)
         if cmdparser is not None:
-            return cmdparser
-        if self.__subparser is None:
-            self.__subparser = self.add_subparsers(help='',dest='subcommand')
-        helpinfo = self.__get_help_info(keycls)
-        parser = self.__subparser.add_parser(keycls.cmdname,help=helpinfo)
-        cmdparser = _ParserCompact()
-        cmdparser.parser = parser
-        cmdparser.flags = []
-        cmdparser.cmdname = keycls.cmdname
-        cmdparser.typeclass = keycls
-        self.__cmdparsers.append(cmdparser)
+            return cmdparser        
+        cmdparser = _ParserCompact(keycls)
+
+        if len(parentname) == 0:
+            self.__maincmd.subcommands.append(cmdparser)
+        else:
+            curparser[-1].subcommands.append(cmdparser)
         return cmdparser
 
 
@@ -415,8 +601,12 @@ class ExtArgsParse(argparse.ArgumentParser):
             raise Exception('(%s) can not make command recursively'%(keycls.origkey))
         if not isinstance( keycls.value,dict):
             raise Exception('(%s) value must be dict'%(keycls.origkey))
-        parser = self.__get_subparser_inner(keycls)
-        self.__load_command_line_inner(keycls.prefix,keycls.value,parser)
+        parser = self.__get_subparser_inner(keycls,lastparser)
+        nextparser = []
+        if lastparser is not None:
+            nextparser = lastparser
+        nextparser.append(parser)
+        self.__load_command_line_inner(keycls.prefix,keycls.value,nextparser)
         return True
 
     def __load_command_prefix(self,prefix,keycls,curparser=None):
@@ -427,15 +617,8 @@ class ExtArgsParse(argparse.ArgumentParser):
         self.__load_command_line_json_added(curparser)
         for k in d.keys():
             v = d[k]
-            if curparser:
-                # if we have in the mode for this we should make it
-                # must be the flag mode
-                self.__logger.info('%s , %s , %s , True'%(prefix,k,v))
-                keycls = keyparse.ExtKeyParse(prefix,k,v,True)
-            else:
-                # we can not make sure it is flag mode
-                self.__logger.info('%s , %s , %s , False'%(prefix,k,v))
-                keycls = keyparse.ExtKeyParse(prefix,k,v,False)
+            self.__logger.info('%s , %s , %s , True'%(prefix,k,v))
+            keycls = keyparse.ExtKeyParse(prefix,k,v,False)
             valid = self.__load_command_map[keycls.type](prefix,keycls,curparser)
             if not valid:
                 raise Exception('can not add (%s)'%(k,v))
