@@ -294,6 +294,14 @@ class ExtArgsParse(object):
             raise Exception(msg)
         return args
 
+    def __inc_action(self,args,dest,value):
+        val = getattr(args,dest,None)
+        if val is None:
+            val = 0
+        val += 1
+        setattr(args,dest,val)
+        return args
+
     def __float_action(self,args,dest,value):
         try:
             num = float(value)
