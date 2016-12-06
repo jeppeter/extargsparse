@@ -34,31 +34,6 @@ def set_attr_args(self,args,prefix):
             setattr(self,p,getattr(args,p))
     return
 
-def call_func_args(funcname,args,Context):
-    global extargs_shell_out_mode
-    mname = '__main__'
-    fname = funcname
-    try:
-        if '.' not in funcname:
-            m = importlib.import_module(mname)
-        else:
-            sarr = re.split('\.',funcname)
-            mname = '.'.join(sarr[:-1])
-            fname = sarr[-1]
-            m = importlib.import_module(mname)
-    except ImportError as e:
-        sys.stderr.write('can not load %s\n'%(mname))
-        return args
-
-    for d in dir(m):
-        if d == fname:
-            val = getattr(m,d)
-            if hasattr(val,'__call__'):
-                val(args,Context)
-                return args
-    if extargs_shell_out_mode == 0:
-        sys.stderr.write('can not call %s\n'%(funcname))
-    return args
 
 
 
@@ -115,21 +90,54 @@ class FloatAction(argparse.Action):
 class ExtArgsParse(argparse.ArgumentParser):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
+
+    def __call_func_args(self,funcname,args,Context):
+        mname = '__main__'
+        fname = funcname
+        if len(self.__output_mode) > 0:
+            if self.__output_mode[-1] == 'bash' or self.__output_mode[-1] == 'c':
+                return args
+
+        try:
+            if '.' not in funcname:
+                m = importlib.import_module(mname)
+            else:
+                sarr = re.split('\.',funcname)
+                mname = '.'.join(sarr[:-1])
+                fname = sarr[-1]
+                m = importlib.import_module(mname)
+        except ImportError as e:
+            self.__logger.error('can not load %s'%(mname))
+            return args
+
+        for d in dir(m):
+            if d == fname:
+                val = getattr(m,d)
+                if hasattr(val,'__call__'):
+                    val(args,Context)
+                    return args
+        self.__logger.error('can not call %s'%(funcname))
+        return args
+
     def error(self,message):
-        global extargs_shell_out_mode
-        if extargs_shell_out_mode == 0:
+        output = False
+        if len(self.__output_mode) > 0:
+            if self.__output_mode[-1] == 'bash':
+                s = ''
+                s += 'cat >&2 <<EXTARGSEOF\n'
+                s += 'parse command error\n    %s\n'%(message)
+                s += 'EXTARGSEOF\n'
+                s += 'exit 3\n'
+                sys.stdout.write('%s'%(s))
+                output = True
+
+        if not output :
             s = 'parse command error\n'
             s += '    %s'%(message)
             sys.stderr.write('%s'%(s))
-        else:
-            s = ''
-            s += 'cat >&2 <<EXTARGSEOF\n'
-            s += 'parse command error\n    %s\n'%(message)
-            s += 'EXTARGSEOF\n'
-            s += 'exit 3\n'
-            sys.stdout.write('%s'%(s))
         sys.exit(3)
         return
+
     def __get_help_info(self,keycls):
         helpinfo = ''
         if keycls.type == 'bool':
@@ -311,7 +319,7 @@ class ExtArgsParse(argparse.ArgumentParser):
 
     def __load_command_line_json_added(self,curparser=None):
         prefix = ''
-        key = 'json## json input file to get the value set ##'
+        key = 'json##json input file to get the value set##'
         value = None
         if curparser :
             prefix = curparser.cmdname
@@ -351,6 +359,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         self.__subparser = None
         self.__cmdparsers = []
         self.__flags = []
+        self.__output_mode = []
         self.__load_command_map = {
             'string' : self.__load_command_line_string,
             'unicode' : self.__load_command_line_string,
@@ -669,46 +678,57 @@ class ExtArgsParse(argparse.ArgumentParser):
 
 
 
-    def parse_command_line(self,params=None,Context=None):
+    def parse_command_line(self,params=None,Context=None,mode=None):
         # we input the self command line args by default
-        self.__set_command_line_self_args()
-        if params is None:
-            params = sys.argv[1:]
+        pushmode = False
+        if mode is not None:
+            pushmode = True
+            self.__output_mode.append(mode)
+        try:
+            self.__set_command_line_self_args()
+            if params is None:
+                params = sys.argv[1:]
 
-        s = self.__check_help_options(params)
-        if s is not None:
-            return s
-        args = self.parse_args(params)
+            s = self.__check_help_options(params)
+            if s is not None:
+                return s
+            args = self.parse_args(params)
 
-        for p in self.__load_priority:
-            args = self.__parse_set_map[p](args)
+            for p in self.__load_priority:
+                args = self.__parse_set_map[p](args)
 
-        # set the default value
-        args = self.__set_default_value(args)
+            # set the default value
+            args = self.__set_default_value(args)
 
-        # now test whether the function has
-        if self.__subparser and args.subcommand is not None:
-            parser = self.__find_subparser_inner(args.subcommand)
-            assert(parser is not None)
-            funcname = parser.typeclass.function
-            if funcname is not None:
-                return call_func_args(funcname,args,Context)
+            # now test whether the function has
+            if self.__subparser and args.subcommand is not None:
+                parser = self.__find_subparser_inner(args.subcommand)
+                assert(parser is not None)
+                funcname = parser.typeclass.function
+                if funcname is not None:
+                    return self.__call_func_args(funcname,args,Context)
+        finally:
+            if pushmode:
+                self.__output_mode.pop()
+                pushmode = False
         return args
 
     def __print_out_help(self):
-        global extargs_shell_out_mode
         s = ''
         sio = StringIO.StringIO()
         self.print_help(sio)
-        if extargs_shell_out_mode == 0:
+        output = False
+        if len(self.__output_mode) > 0:
+            if self.__output_mode[-1] == 'bash':
+                s +=  'cat << EXTARGSEOF\n'
+                s +=  '%s\n'%(sio.getvalue())
+                s += 'EXTARGSEOF\n'
+                s += 'exit 0\n'
+                output = True
+        if not output :
             s += sio.getvalue()
             sys.stdout.write(s)
             sys.exit(0)
-        else:
-            s +=  'cat << EXTARGSEOF\n'
-            s +=  '%s\n'%(sio.getvalue())
-            s += 'EXTARGSEOF\n'
-            s += 'exit 0\n'
         return s
 
 
@@ -767,10 +787,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         return s
 
     def shell_eval_out(self,params=None,Context=None):
-        global extargs_shell_out_mode
-        extargs_shell_out_mode = 1
-        args = self.parse_command_line(params,Context)
-        extargs_shell_out_mode = 0
+        args = self.parse_command_line(params,Context,'bash')
         if isinstance(args,str):
             # that is help information
             return args
