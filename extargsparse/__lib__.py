@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import argparse
 import os
 import sys
 import json
@@ -34,25 +33,6 @@ def set_attr_args(self,args,prefix):
             setattr(self,p,getattr(args,p))
     return
 
-
-
-
-
-class IntAction(argparse.Action):
-     def __init__(self, option_strings, dest, nargs=1, **kwargs):
-        super(IntAction,self).__init__(option_strings, dest, **kwargs)
-        return
-
-     def __call__(self, parser, namespace, values, option_string=None):
-        try:
-            if values.startswith('x') or values.startswith('0x'):
-                intval = int(values,16)
-            else:
-                intval = int(values)
-        except:
-            raise Exception('%s not valid number'%(values))
-        setattr(namespace,self.dest,intval)
-        return
 
 #####################################
 ##
@@ -135,6 +115,11 @@ class _ParserCompact(object):
             self.cmdopts = []
             self.helpinfo = None
             self.callfunction = None
+        self.epilog = None
+        self.description = None
+        self.prog = None
+        self.usage = None
+        self.version = None
         return
 
     def __get_opt_help(self,opt):
@@ -182,29 +167,43 @@ class _ParserCompact(object):
         return cmdname,cmdhelp
 
 
-    def get_help_info(self,helpsize=None,parentcmds=[],whole=False):
+    def get_help_info(self,helpsize=None,parentcmds=[]):
         if helpsize is None:
             helpsize = self.get_help_size()
         s = ''
-        s += '%s'%(sys.argv[0])
-        if len(parentcmds) > 0:
-            for c in parentcmds:
-                    s += ' %s'%(c.cmdname)
-        s += ' %s'%(self.cmdname)
-        if len(self.cmdopts) > 0:
-            s += ' [OPTIONS]'
-        if len(self.subcommands) > 0:
-            s += ' [SUBCOMMANDS]'
-        for args in self.cmdopts:
-            if args.flagname == '$':
-                if args.nargs == '+' or args.nargs > 1:
-                    s += ' args...'
-                elif args.nargs == '*':
-                    s += ' [args...]'
-                elif args.nargs = '?' or args.nargs == 1:
-                    s += ' arg'
-                break
-        s += '\n'
+        if self.usage is not None:
+            s += '%s'%(self.usage)
+        else:
+
+            rootcmds = self
+            if len(parentcmds) > 0:
+                rootcmds = parentcmds[0]
+            if rootcmds.prog is not None:
+                s += '%s'%(rootcmds.prog)
+            else:
+                s += '%s'%(sys.argv[0])
+            if rootcmds.version is not None:
+                s += ' %s'%(rootcmds.version)
+            if len(parentcmds) > 0:
+                for c in parentcmds:
+                        s += ' %s'%(c.cmdname)
+            s += ' %s'%(self.cmdname)
+            if len(self.cmdopts) > 0:
+                s += ' [OPTIONS]'
+            if len(self.subcommands) > 0:
+                s += ' [SUBCOMMANDS]'
+            for args in self.cmdopts:
+                if args.flagname == '$':
+                    if args.nargs == '+' or args.nargs > 1:
+                        s += ' args...'
+                    elif args.nargs == '*':
+                        s += ' [args...]'
+                    elif args.nargs = '?' or args.nargs == 1:
+                        s += ' arg'
+                    break
+            s += '\n'
+        if self.description is not None:
+            s += '%s\n'%(self.description)        
         if len(self.cmdopts) > 0:
             s += '[OPTIONS]\n'
             for opt in self.cmdopts:
@@ -217,39 +216,14 @@ class _ParserCompact(object):
             for cmd in self.subcommands:
                 cmdname,cmdhelp = self.__get_cmd_help(cmd)
                 s += '\t%-*s %-*s\n'%(helpsize.cmdnamesize,cmdname,helpsize.cmdhelpsize,cmdhelp)
+        if self.epilog is not None:
+            s += '\n%s\n'%(self.epilog)
         return s
 
+class NameSapce(object):
+    pass
 
-class ArrayAction(argparse.Action):
-     def __init__(self, option_strings, dest, nargs=1, **kwargs):
-        argparse.Action.__init__(self,option_strings, dest, **kwargs)
-        return
-
-     def __call__(self, parser, namespace, values, option_string=None):
-        if getattr(namespace,self.dest) is None:
-            setattr(namespace,self.dest,[])
-        lists = getattr(namespace,self.dest)
-        if values not in lists:
-            lists.append(values)
-        setattr(namespace,self.dest,lists)
-        return
-
-class FloatAction(argparse.Action):
-     def __init__(self, option_strings, dest, nargs=1, **kwargs):
-        super(IntAction,self).__init__(option_strings, dest, **kwargs)
-        return
-
-     def __call__(self, parser, namespace, values, option_string=None):
-        try:
-            fval = float(values)
-        except:
-            raise Exception('%s not valid number'%(values))
-        setattr(namespace,self.dest,fval)
-        return
-
-
-
-class ExtArgsParse(argparse.ArgumentParser):
+class ExtArgsParse(object):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
 
@@ -469,16 +443,7 @@ class ExtArgsParse(argparse.ArgumentParser):
         return self.__load_command_line_jsonfile(keycls,curparser)
 
 
-    def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,
-                 parents=[],formatter_class=argparse.HelpFormatter,prefix_chars='-',
-                 fromfile_prefix_chars=None,argument_default=None,
-                 conflict_handler='error',add_help=True,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
-        if sys.version[0] == '2':
-            super(ExtArgsParse,self).__init__(prog,usage,description,epilog,version,parents,formatter_class,prefix_chars,
-                fromfile_prefix_chars,argument_default,conflict_handler,add_help)
-        else:
-            super(ExtArgsParse,self).__init__(prog,usage,description,epilog,parents,formatter_class,prefix_chars,
-                fromfile_prefix_chars,argument_default,conflict_handler,add_help)                
+    def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
         self.__logger = logging.getLogger('extargsparse')
         if len(self.__logger.handlers) == 0:
             loglvl = logging.WARN
@@ -499,6 +464,11 @@ class ExtArgsParse(argparse.ArgumentParser):
             self.__logger.addHandler(handler)
             self.__logger.setLevel(loglvl)
         self.__maincmd = _ParserCompact(None)
+        self.__maincmd.prog = prog
+        self.__maincmd.usage = usage
+        self.__maincmd.description = description
+        self.__maincmd.epilog = epilog
+        self.__maincmd.version = version
         self.__output_mode = []
         self.__load_command_map = {
             'string' : self.__load_command_line_string,
