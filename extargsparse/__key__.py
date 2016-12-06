@@ -7,6 +7,55 @@ import re
 import unittest
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+
+class KeyAttr(object):
+	def __init__(self,attr):
+		self.__obj = dict()
+		self.__splitchar = ';'
+		self.__attr = ''
+		logging.info('key attr %s'%(attr))
+		if attr is not None and len(attr) > 0:
+			self.__attr = attr
+			if attr.startswith('split=') and len(attr) >= 7:
+				c = attr[6]
+				if c == '.':
+					self.__splitchar='\.'
+				elif c == '\\':
+					self.__splitchar= '\\'
+				elif c == '\/':
+					self.__splitchar= '\/'
+				elif c == ':':
+					self.__splitchar= ':'
+				elif c == '@':
+					self.__splitchar= '@'
+				elif c == '+':
+					self.__splitchar = '\+'
+				else:
+					raise Exception('can not accept (%s) as split char'%(c))
+			sarr = re.split(self.__splitchar,attr)
+			for c in sarr:				
+				if c.startswith('split=') or len(c) == 0:
+					# because this is the new
+					continue
+				key,val = re.split('=',c,2)
+				if val is not None:
+					self.__obj[key] = val
+				else:
+					self.__obj[key] = True
+		return
+
+	def __str__(self):
+		return self.__attr
+
+
+	def __getattr__(self,name):
+		if name.startswith('_'):
+			return self.__dict__[name]
+		if name in self.__obj.keys():
+			return self.__obj[name]
+		return None
+
+
 class TypeClass(object):
 	def __init__(self,v):
 		self.__type = type(v)
@@ -86,7 +135,7 @@ class ExtKeyParse:
 	flagspecial = ['value','prefix']
 	flagwords = ['flagname','helpinfo','shortflag','nargs','varname']
 	cmdwords = ['cmdname','function','helpinfo']
-	otherwords = ['origkey','iscmd','isflag','type']
+	otherwords = ['origkey','iscmd','isflag','type','attr']
 	formwords = ['longopt','shortopt','optdest']
 	def __reset(self):
 		self.__value = None
@@ -102,6 +151,7 @@ class ExtKeyParse:
 		self.__iscmd = None
 		self.__isflag = None
 		self.__type = None
+		self.__attr = None
 		return
 
 	def __validate(self):
@@ -177,7 +227,7 @@ class ExtKeyParse:
 		self.__origkey = key
 		if 'value' not in value.keys():
 			self.__value = None
-			self.__type = 'string'
+			self.__type = 'string'		
 
 		for k in value.keys():
 			if k in self.__class__.flagwords:
@@ -207,6 +257,7 @@ class ExtKeyParse:
 		if len(self.__prefix) == 0  and len(prefix) > 0:
 			self.__prefix = prefix
 		return
+
 
 
 	def __parse(self,prefix,key,value,isflag):
@@ -282,7 +333,6 @@ class ExtKeyParse:
 				else:
 					self.__cmdname = m[0]
 					cmdmod = True
-
 		m = self.__helpexpr.findall(self.__origkey)
 		if m and len(m) > 0:
 			self.__helpinfo = m[0]
@@ -329,6 +379,10 @@ class ExtKeyParse:
 				self.__type = 'string'
 		if self.__isflag and self.__type == 'dict' and self.__flagname:
 			self.__set_flag(prefix,key,value)
+			# now we should 
+		m = self.__attrexpr.findall(self.__origkey)
+		if m and len(m) > 0:
+			self.__attr = KeyAttr(m[0])
 
 		# we put here for the lastest function
 		m = self.__funcexpr.findall(self.__origkey)
@@ -358,12 +412,13 @@ class ExtKeyParse:
 		value = Utf8Encode(value).get_val()
 
 		self.__reset()
-		self.__helpexpr = re.compile('##([^#]+)##$',re.I)
-		self.__cmdexpr = re.compile('^([^\#\<\>\+\$]+)',re.I)
-		self.__prefixexpr = re.compile('\+([^\+\#\<\>\|\$ \t]+)',re.I)
-		self.__funcexpr = re.compile('<([^\<\>\#\$\| \t]+)>',re.I)
-		self.__flagexpr = re.compile('^([^\<\>\#\+\$ \t]+)',re.I)
-		self.__mustflagexpr = re.compile('^\$([^\$\+\#\<\>]+)',re.I)
+		self.__helpexpr = re.compile('##([^\#\!]+)##$',re.I)
+		self.__cmdexpr = re.compile('^([^\#\<\>\+\$\!]+)',re.I)
+		self.__prefixexpr = re.compile('\+([a-zA-Z]+[a-zA-Z_\-0-9]*)',re.I)
+		self.__funcexpr = re.compile('<([^\<\>\#\$\| \t\!]+)>',re.I)
+		self.__flagexpr = re.compile('^([^\<\>\#\+\$ \t\!]+)',re.I)
+		self.__mustflagexpr = re.compile('^\$([^\$\+\#\<\>\!]+)',re.I)
+		self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
 		self.__origkey = key
 		if isinstance(key,dict):
 			raise Exception('can not accept key for dict type')
@@ -449,6 +504,8 @@ class ExtKeyParse:
 				s += '<varname:%s>'%(self.__varname)
 			if self.__value is not None:
 				s += '<value:%s>'%(self.__value)
+		if self.__attr is not None:
+			s += '<attr:%s>'%(self.__attr)
 		s += '}'
 		return s
 
@@ -1004,6 +1061,27 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.cmdname,None)
 		self.assertEqual(flags.function,None)
 		self.assertEqual(flags.varname,'newargs')
+		attr = flags.attr
+		self.assertTrue(attr is None)
+		self.__opt_fail_check(flags)
+		return
+
+	def test_A036(self):
+		flags = ExtKeyParse('prefix','$<newargs>!func=args_opt_func;wait=cc!','+',False)
+		self.assertEqual(flags.flagname,'$')
+		self.assertEqual(flags.prefix,'prefix')
+		self.assertEqual(flags.value,None)
+		self.assertEqual(flags.type,'args')
+		self.assertEqual(flags.helpinfo,None)
+		self.assertEqual(flags.nargs,'+')
+		self.assertEqual(flags.shortflag,None)
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.varname,'newargs')
+		attr = flags.attr
+		self.assertTrue(attr is not None)
+		self.assertEqual(attr.func,'args_opt_func')
+		self.assertEqual(attr.wait,'cc')
 		self.__opt_fail_check(flags)
 		return
 

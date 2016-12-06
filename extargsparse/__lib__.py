@@ -731,6 +731,17 @@ class ExtArgsParse(argparse.ArgumentParser):
             sys.exit(0)
         return s
 
+    def get_command_options(self,cmdname=None):
+        if cmdname is None or len(cmdname) == 0:
+            # this is the command of main ,so just return the keycls for main
+            return self.__flags
+        sarr = re.split('\.',cmdname)
+        retval = []
+        if len(sarr) == 1:
+            cmdparser = self.__find_subparser_inner(sarr[0])
+            if cmdparser is not None:
+                retval = cmdparser.flags
+        return retval
 
 
     def __shell_eval_out_flagarray(self,args,flagarray,ismain=True,curparser=None):
