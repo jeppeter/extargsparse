@@ -13,7 +13,6 @@ class KeyAttr(object):
 		self.__obj = dict()
 		self.__splitchar = ';'
 		self.__attr = ''
-		logging.info('key attr %s'%(attr))
 		if attr is not None and len(attr) > 0:
 			self.__attr = attr
 			if attr.startswith('split=') and len(attr) >= 7:
@@ -136,7 +135,7 @@ class ExtKeyParse:
 	flagwords = ['flagname','helpinfo','shortflag','nargs','varname']
 	cmdwords = ['cmdname','function','helpinfo']
 	otherwords = ['origkey','iscmd','isflag','type','attr']
-	formwords = ['longopt','shortopt','optdest']
+	formwords = ['longopt','shortopt','optdest','needarg']
 	def __reset(self):
 		self.__value = None
 		self.__prefix = ''
@@ -154,6 +153,37 @@ class ExtKeyParse:
 		self.__attr = None
 		return
 
+	def __eq_name__(self,other,name):
+		if name in self.__class__.flagwords or name in self.__class__.flagspecial or \
+		    name in self.__class__.cmdwords or name in self.__class__.otherwords or \
+		    name in self.__class__.formwords:
+			keyname = self.__get_inner_name(name)
+			if self.__dict__[keyname] is None and \
+			    other.__dict__[keyname] is None:
+			    return True
+			elif self.__dict__[keyname] is not None and \
+			     other.__dict__[keyname] is None:
+			     return False
+			elif self.__dict__[keyname] is None and \
+			     other.__dict__[keyname] is not None:
+			     return False
+			elif self.__dict__[keyname] != other.__dict__[keyname]:
+				return False
+			return True
+		return False
+
+	def __eq__(self,other):
+		if not self.__eq_name__(other,'origkey'):
+			return False
+		if not self.__eq_name__(other,'prefix'):
+			return False
+		if not self.__eq_name__(other,'type'):
+			return False
+		if not self.__eq_name__(other,'value'):
+			return False
+		return True
+
+
 	def __validate(self):
 		if self.__isflag:
 			assert(not self.__iscmd )
@@ -162,7 +192,7 @@ class ExtKeyParse:
 			if self.__type == 'dict' and self.__flagname:
 				# in the prefix we will get dict ok
 				raise Exception('(%s) flag can not accept dict'%(self.__origkey))
-			if self.__type != str(TypeClass(self.__value)) and self.__type != 'count':
+			if self.__type != str(TypeClass(self.__value)) and self.__type != 'count' and self.__type != 'help':
 				raise Exception('(%s) value (%s) not match type (%s)'%(self.__origkey,self.__value,self.__type))
 			if self.__flagname is None :
 				# we should test if the validate flag
@@ -190,9 +220,13 @@ class ExtKeyParse:
 			if self.__type == 'bool':
 				# this should be zero
 				if self.__nargs is not None and self.__nargs != 0:
-					raise Exception('bool type (%s) can not accept 0 nargs'%(self.__origkey))
+					raise Exception('bool type (%s) can not accept not 0 nargs'%(self.__origkey))
 				self.__nargs = 0
-			elif self.__type != 'prefix' and self.__flagname != '$' and self.__type != 'count':
+			elif self.__type == 'help':
+				if self.__nargs is not None and self.__nargs != 0:
+					raise Exception('help type (%s) can not accept not 0 nargs'%(self.__origkey))
+				self.__nargs = 0
+			elif self.__type != 'prefix' and self.__flagname != '$' and self.__type != 'count' :
 				if self.__flagname != '$' and self.__nargs != 1 and self.__nargs is not None:
 					raise Exception('(%s)only $ can accept nargs option'%(self.__origkey))
 				self.__nargs = 1
@@ -260,7 +294,7 @@ class ExtKeyParse:
 
 
 
-	def __parse(self,prefix,key,value,isflag):
+	def __parse(self,prefix,key,value,isflag,ishelp):
 		flagmod = False
 		cmdmod = False
 		flags = None
@@ -276,7 +310,7 @@ class ExtKeyParse:
 				pass
 			if ok == 0 :
 				raise Exception('(%s) has ($) more than one'%(self.__origkey))
-		if isflag :
+		if isflag or ishelp:
 			m = self.__flagexpr.findall(self.__origkey)
 			if m and len(m)>0:
 				flags = m[0]
@@ -356,7 +390,13 @@ class ExtKeyParse:
 			self.__isflag = True
 			self.__iscmd = False
 		self.__value = value
-		self.__type = str(TypeClass(value))
+		if not ishelp:
+			self.__type = str(TypeClass(value))
+		else:
+			self.__type = 'help'
+			self.__nargs = 0
+		if self.__type == 'help' and value is not None:
+			raise Exception('help type must be value None')
 		if cmdmod and self.__type != 'dict':
 			flagmod = True
 			cmdmod = False
@@ -406,7 +446,7 @@ class ExtKeyParse:
 
 
 
-	def __init__(self,prefix,key,value,isflag=False):
+	def __init__(self,prefix,key,value,isflag=False,ishelp=False):
 		key = Utf8Encode(key).get_val()
 		prefix = Utf8Encode(prefix).get_val()
 		value = Utf8Encode(value).get_val()
@@ -423,8 +463,7 @@ class ExtKeyParse:
 		if isinstance(key,dict):
 			raise Exception('can not accept key for dict type')
 		else:
-
-			self.__parse(prefix,key,value,isflag)
+			self.__parse(prefix,key,value,isflag,ishelp)
 		return
 
 	def __form_word(self,keyname):
@@ -435,7 +474,7 @@ class ExtKeyParse:
 			if self.__type == 'bool' and self.__value :
 				# we set no
 				longopt += 'no-'
-			if len(self.__prefix) > 0 :
+			if len(self.__prefix) > 0 and self.__type != 'help':
 				longopt += '%s_'%(self.__prefix)
 			longopt += self.__flagname
 			longopt = longopt.lower()
@@ -459,6 +498,13 @@ class ExtKeyParse:
 			optdest = optdest.lower()
 			optdest = optdest.replace('-','_')
 			return optdest
+		elif keyname == 'needarg':
+			if not self.__isflag:
+				return 0
+			if self.__type == 'int' or self.__type == 'list' or self.__type == 'long' or \
+				self.__type == 'float' or self.__type == 'unicode' or self.__type == 'string':
+				return 1
+			return 0
 
 		assert(False)
 		return
@@ -483,6 +529,7 @@ class ExtKeyParse:
 	def __format_string(self):
 		s = '{'
 		s += '<type:%s>'%(self.__type)
+		s += '<origkey:%s>'%(self.__origkey)
 		if self.__iscmd:
 			s += '<cmdname:%s>'%(self.__cmdname)
 			if self.__function:
@@ -1083,6 +1130,36 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(attr.func,'args_opt_func')
 		self.assertEqual(attr.wait,'cc')
 		self.__opt_fail_check(flags)
+		return
+
+	def test_A037(self):
+		flags = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+		self.assertEqual(flags.flagname,'help')
+		self.assertEqual(flags.prefix,'prefix')
+		self.assertEqual(flags.value,None)
+		self.assertEqual(flags.type,'help')
+		self.assertEqual(flags.helpinfo,None)
+		self.assertEqual(flags.nargs,0)
+		self.assertEqual(flags.shortflag,'h')
+		self.assertEqual(flags.cmdname,None)
+		self.assertEqual(flags.function,None)
+		self.assertEqual(flags.varname,'prefix_help')
+		attr = flags.attr
+		self.assertTrue(attr is not None)
+		self.assertEqual(attr.func,'args_opt_func')
+		self.assertEqual(attr.wait,'cc')
+		self.assertEqual(flags.longopt,'--help')
+		self.assertEqual(flags.shortopt,'-h')
+		self.assertEqual(flags.optdest,'prefix_help')
+		return
+
+	def test_A038(self):
+		flag1 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+		flag2 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False)
+		self.assertFalse(flag1 == flag2)
+		flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+		flag4 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+		self.assertTrue(flag3 == flag4)
 		return
 
 
