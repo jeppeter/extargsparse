@@ -399,9 +399,9 @@ class _ParseState(_LoggerObject):
                         continue
                     if opt.flagname == '$':
                         continue
-                    if opt.shortopt is not None:
-                        self.info('opt %s %c'%(opt,curch))
-                        if opt.shortopt[1] == curch:
+                    if opt.shortflag is not None:
+                        self.info('opt %s %c %c'%(opt,opt.shortflag,curch))
+                        if opt.shortflag == curch:
                             self.__keyidx = oldidx
                             self.__validx = -1
                             if opt.needarg:
@@ -1116,8 +1116,8 @@ class ExtArgsParse(_LoggerObject):
                 self.error_msg('can not get cmd (%s) whole name'%(curcmd))
             # replace with prefix
             prefix = cmdname.replace('.','_')
-            curkey = keyparse.ExtKeyParse(prefix,'$','*',True)
-            self.__load_command_line_args('',curkey,None)
+            curkey = keyparse.ExtKeyParse('','$','*',True)
+            self.__load_command_line_args('',curkey,parentpaths)
         return
 
     def __parse_sub_command_json_set(self,args):
@@ -1187,6 +1187,7 @@ class ExtArgsParse(_LoggerObject):
     def __set_args(self,args,cmdpaths,vals):
         argskeycls = None
         cmdname = self.__format_cmdname_path(cmdpaths)
+        self.info('[%s] %s'%(cmdname,self.format_string(cmdpaths[-1].cmdopts)))
         for c in cmdpaths[-1].cmdopts:
             if c.flagname == '$':
                 argskeycls = c
@@ -2313,7 +2314,7 @@ class ExtArgsTestCase(unittest.TestCase):
                 "port" : 5000,
                 "cc|C" : true
             },
-            "verbose" : "+"
+            "verbose|v" : "+"
         }
         '''
         parser = ExtArgsParse()
@@ -2324,6 +2325,14 @@ class ExtArgsTestCase(unittest.TestCase):
         self.assertEqual(args.rdep_ip_modules,['cc'])
         self.assertEqual(args.rdep_ip_setname,'bb')
         self.assertEqual(args.subnargs,['xx','bb'])
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['dep','--verbose','--verbose','-vvC'])
+        self.assertEqual(args.subcommand,'dep')
+        self.assertEqual(args.verbose,4)
+        self.assertEqual(args.dep_port,5000)
+        self.assertEqual(args.dep_cc,False)
+        self.assertEqual(args.subnargs,[])
         return
 
 
