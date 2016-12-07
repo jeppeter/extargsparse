@@ -2291,6 +2291,34 @@ class ExtArgsTestCase(unittest.TestCase):
         self.assertEqual(flag.type,'bool')
         return
 
+    def test_A024(self):
+        commandline='''
+        {
+            "rdep" : {
+                "ip" : {
+                    "modules" : [],
+                    "called" : true,
+                    "setname" : null,
+                    "$" : 2
+                }
+            },
+            "dep" : {
+                "port" : 5000,
+                "cc|C" : true
+            },
+            "verbose" : "+"
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['rdep','ip','--verbose','--rdep-ip-modules','cc','--rdep-ip-setname','bb','xx','bb'])
+        self.assertEqual(args.subcommand,'rdep.ip')
+        self.assertEqual(args.verbose,1)
+        self.assertEqual(args.rdep_ip_modules,['cc'])
+        self.assertEqual(args.rdep_ip_setname,'bb')
+        self.assertEqual(args.subnargs,['xx','bb'])
+        return
+
 
 
 
