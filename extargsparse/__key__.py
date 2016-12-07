@@ -243,7 +243,10 @@ class ExtKeyParse:
 				raise Exception('(%s) has nargs (%s)'%(self.__origkey,self.__nargs))
 			if self.__type != 'dict':
 				raise Exception('(%s) command must be dict'%(self.__origkey))
-			self.__prefix = self.__cmdname
+			if self.__prefix is None:
+				self.__prefix = ''
+			if len(self.__prefix) == 0:
+				self.__prefix += self.__cmdname			
 			self.__type = 'command'
 		if self.__isflag and self.__varname is None and self.__flagname is not None:
 			if self.__flagname != '$':
@@ -372,14 +375,16 @@ class ExtKeyParse:
 			self.__helpinfo = m[0]
 		newprefix = ''
 		if prefix and len(prefix) > 0 :
-			newprefix = '%s_'%(prefix)
+			newprefix = '%s'%(prefix)
 		m = self.__prefixexpr.findall(self.__origkey)
 		if m and len(m) > 0:
+			if len(newprefix) > 0:
+				newprefix += '_'
 			newprefix += m[0]
 			self.__prefix = newprefix
 		else:
-			if len(prefix) > 0:
-				self.__prefix = prefix
+			if len(newprefix) > 0:
+				self.__prefix = newprefix
 		if flagmod :
 			self.__isflag = True
 			self.__iscmd = False
@@ -456,8 +461,8 @@ class ExtKeyParse:
 		self.__cmdexpr = re.compile('^([^\#\<\>\+\$\!]+)',re.I)
 		self.__prefixexpr = re.compile('\+([a-zA-Z]+[a-zA-Z_\-0-9]*)',re.I)
 		self.__funcexpr = re.compile('<([^\<\>\#\$\| \t\!]+)>',re.I)
-		self.__flagexpr = re.compile('^([^\<\>\#\+\$ \t\!]+)',re.I)
-		self.__mustflagexpr = re.compile('^\$([^\$\+\#\<\>\!]+)',re.I)
+		self.__flagexpr = re.compile('^([a-zA-Z_\|]+[a-zA-Z_0-9\|]*)',re.I)
+		self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|]+[a-zA-Z_0-9\|]*)',re.I)
 		self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
 		self.__origkey = key
 		if isinstance(key,dict):
@@ -659,7 +664,7 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.cmdname , 'flag')
 		self.assertEqual(flags.function , 'flag.main')
 		self.assertEqual(flags.type , 'command')
-		self.assertEqual(flags.prefix ,'flag')
+		self.assertEqual(flags.prefix ,'newtype')
 		self.assertEqual(flags.helpinfo,'help for flag')
 		self.assertTrue(flags.flagname is None)
 		self.assertTrue(flags.shortflag is None)
@@ -691,7 +696,7 @@ class UnitTestCase(unittest.TestCase):
 	def test_A006(self):
 		flags = ExtKeyParse('','flag+type<flag.main>##main',{'new':False},False)
 		self.assertEqual(flags.cmdname , 'flag')
-		self.assertEqual(flags.prefix , 'flag')
+		self.assertEqual(flags.prefix , 'type')
 		self.assertEqual(flags.function , 'flag.main')
 		self.assertTrue(flags.helpinfo is None)
 		self.assertTrue(flags.flagname is None)
@@ -848,7 +853,7 @@ class UnitTestCase(unittest.TestCase):
 	def test_A018(self):
 		flags = ExtKeyParse('','flag+app<flag.main>## flag help ##',{},False)
 		self.assertEqual(flags.flagname , None)
-		self.assertEqual(flags.prefix , 'flag')
+		self.assertEqual(flags.prefix , 'app')
 		self.assertEqual(flags.cmdname , 'flag')
 		self.assertEqual(flags.shortflag , None)
 		self.assertEqual(flags.varname,None)
@@ -1160,6 +1165,21 @@ class UnitTestCase(unittest.TestCase):
 		flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
 		flag4 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
 		self.assertTrue(flag3 == flag4)
+		return
+
+	def test_A039(self):
+		flags = ExtKeyParse('rdep','ip',{'modules' : [],'$<NARGS>' : '+'},False)
+		self.assertEqual(flags.iscmd , True)
+		self.assertEqual(flags.cmdname,'ip')
+		self.assertEqual(flags.prefix,'rdep')
+		flags = ExtKeyParse('rdep_ip','modules', [],False)
+		self.assertEqual(flags.isflag,True)
+		self.assertEqual(flags.value,[])
+		self.assertEqual(flags.prefix,'rdep_ip')
+		self.assertEqual(flags.longopt,'--rdep-ip-modules')
+		self.assertEqual(flags.shortopt,None)
+		self.assertEqual(flags.optdest,'rdep_ip_modules')
+		self.assertEqual(flags.varname,'rdep_ip_modules')
 		return
 
 

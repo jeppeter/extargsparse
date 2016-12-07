@@ -400,7 +400,7 @@ class _ParseState(_LoggerObject):
                     if opt.flagname == '$':
                         continue
                     if opt.shortopt is not None:
-                        #self.info('opt %s %c'%(opt,curch))
+                        self.info('opt %s %c'%(opt,curch))
                         if opt.shortopt[1] == curch:
                             self.__keyidx = oldidx
                             self.__validx = -1
@@ -428,7 +428,7 @@ class _ParseState(_LoggerObject):
                     self.__curcharidx = -1
                     self.__shortcharargs = -1
                     return None
-                self.info('argv[%d] %s oldcharidx %d'%(oldidx,self.__args[oldidx],oldcharidx))
+                #self.info('argv[%d] %s oldcharidx %d'%(oldidx,self.__args[oldidx],oldcharidx))
                 idx = len(self.__cmdpaths) -1
                 while idx >= 0:
                     cmd = self.__cmdpaths[idx]
@@ -437,6 +437,7 @@ class _ParseState(_LoggerObject):
                             continue
                         if opt.flagname == '$':
                             continue
+                        self.info('[%d]longopt %s curarg %s'%(idx,opt.longopt,curarg))
                         if opt.longopt == curarg:
                             self.__keyidx = oldidx
                             oldidx += 1
@@ -889,7 +890,13 @@ class ExtArgsParse(_LoggerObject):
             nextparser = lastparser
         nextparser.append(parser)
         self.info('nextparser %s'%(self.format_string(nextparser)))
-        self.__load_command_line_inner(keycls.prefix,keycls.value,nextparser)
+        self.info('keycls %s'%(keycls))
+        # this would add prefix
+        newprefix = prefix
+        if len(newprefix) > 0:
+            newprefix += '_'
+        newprefix += keycls.cmdname
+        self.__load_command_line_inner(newprefix,keycls.value,nextparser)
         nextparser.pop()
         return True
 
