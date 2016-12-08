@@ -23,7 +23,7 @@ ENV_SUB_COMMAND_JSON_SET = 50
 ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
 
-extargs_shell_out_mode=0
+#extargs_shell_out_mode=0
 
 def set_attr_args(self,args,prefix):
     if not issubclass(args.__class__,argparse.Namespace):
@@ -116,19 +116,17 @@ class _LoggerObject(object):
             inmsg = self.__format_call_msg(msg,(callstack + 1))
         return self.__logger.fatal('%s'%(inmsg))
 
-#####################################
-##
-##  parser.opts = []
-##  parser.cmdname = ''
-##  parser.subcommands = []
-##  parser.callfunction = None
-##  parser.helpinfo  = None
-##  parser.keycls = keycls
-#####################################
-
-
 
 class _HelpSize(_LoggerObject):
+    #####################################
+    ##
+    ##  parser.opts = []
+    ##  parser.cmdname = ''
+    ##  parser.subcommands = []
+    ##  parser.callfunction = None
+    ##  parser.helpinfo  = None
+    ##  parser.keycls = keycls
+    #####################################    
     sizewords = ['optnamesize','optexprsize','opthelpsize','cmdnamesize','cmdhelpsize']
     def __init__(self):
         super(_HelpSize,self).__init__()
@@ -642,7 +640,8 @@ class ExtArgsParse(_LoggerObject):
         return args
 
     def __help_action(self,args,keycls,value):
-        self.print_help(value)
+        self.print_help(sys.stdout,value)
+        sys.exit(0)
         return args
 
     def __command_action(self,args,keycls,value):
@@ -740,7 +739,7 @@ class ExtArgsParse(_LoggerObject):
         value = None
         prefix = self.__format_cmd_from_cmd_array(curparser)
         prefix = prefix.replace('.','_')
-        keycls = keyparse.ExtKeyParse(prefix,key,value,True)
+        keycls = keyparse.ExtKeyParse(prefix,key,value,True,False,True)
         return self.__load_command_line_jsonfile(keycls,curparser)
 
     def __load_command_line_help_added(self,curparser=None):
@@ -774,7 +773,8 @@ class ExtArgsParse(_LoggerObject):
             'command' : self.__load_command_subparser,
             'prefix' : self.__load_command_prefix,
             'count': self.__load_command_line_base,
-            'help' : self.__load_command_line_base
+            'help' : self.__load_command_line_base ,
+            'jsonfile' : self.__load_command_line_base
         }
         self.__opt_parse_handle_map = {
             'string' : self.__string_action,
@@ -785,6 +785,7 @@ class ExtArgsParse(_LoggerObject):
             'list' : self.__append_action,
             'count' : self.__inc_action,
             'help' : self.__help_action,
+            'jsonfile' : self.__string_action,
             'command' : self.__command_action
         }
         for p in priority:
@@ -811,12 +812,14 @@ class ExtArgsParse(_LoggerObject):
         return cmdname
 
     def __find_commands_in_path(self,cmdname,curparser=None):
-        sarr = re.split('\.',cmdname)
+        sarr = ['']
+        if cmdname is not None:
+            sarr = re.split('\.',cmdname)
         commands = []
         i = 0
         if self.__maincmd is not None:
             commands.append(self.__maincmd)
-        while i <= len(sarr) and len(cmdname) > 0:
+        while i <= len(sarr) and cmdname is not None and len(cmdname) > 0:
             if i == 0:
                 pass
             else:
@@ -1062,7 +1065,7 @@ class ExtArgsParse(_LoggerObject):
                 if val is not None:
                     # to check the type
                     val = keyparse.Utf8Encode(val).get_val()
-                    if keycls.type == 'string':
+                    if keycls.type == 'string' or keycls.type == 'jsonfile':
                         setattr(args,oldopt,val)
                     elif keycls.type == 'bool':                     
                         if val.lower() == 'true':
@@ -1762,7 +1765,7 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
-            parser = ExtArgsParse()
+            parser = ExtArgsParse(errorhandler='raise')
             parser.load_command_line_string(commandline)
             args = parser.parse_command_line(['-vvvv','-p','9000','dep','--dep-json',depjsonfile,'--dep-string','ee','ww'])
             self.assertEqual(args.verbose,4)
@@ -1802,7 +1805,7 @@ class ExtArgsTestCase(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
-            parser = ExtArgsParse()
+            parser = ExtArgsParse(errorhandler='raise')
             parser.load_command_line_string(commandline)
             os.environ['DEP_JSON'] = depjsonfile
             args = parser.parse_command_line(['-vvvv','-p','9000','dep','--dep-string','ee','ww'])
@@ -2296,7 +2299,7 @@ class ExtArgsTestCase(unittest.TestCase):
         flag = self.__assert_get_opt(opts,'verbose')
         self.assertEqual(flag.type,'count')
         flag = self.__assert_get_opt(opts,'json')
-        self.assertEqual(flag.type,'string')
+        self.assertEqual(flag.type,'jsonfile')
         flag = self.__assert_get_opt(opts,'help')
         self.assertEqual(flag.type,'help')
         opts = parser.get_cmdopts('dep')
@@ -2306,7 +2309,7 @@ class ExtArgsTestCase(unittest.TestCase):
         flag = self.__assert_get_opt(opts,'help')
         self.assertEqual(flag.type,'help')
         flag = self.__assert_get_opt(opts,'dep_json')
-        self.assertEqual(flag.type,'string')
+        self.assertEqual(flag.type,'jsonfile')
         flag = self.__assert_get_opt(opts,'dep_new')
         self.assertEqual(flag.type,'bool')
         return

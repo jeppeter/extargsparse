@@ -91,7 +91,7 @@ class TypeClass(object):
 		return self.__type
 
 
-class Utf8Encode:
+class Utf8Encode(object):
 	def __dict_utf8(self,val):
 		newdict =dict()
 		for k in val.keys():
@@ -130,7 +130,7 @@ class Utf8Encode:
 	def get_val(self):
 		return self.__val
 
-class ExtKeyParse:
+class ExtKeyParse(object):
 	flagspecial = ['value','prefix']
 	flagwords = ['flagname','helpinfo','shortflag','nargs','varname']
 	cmdwords = ['cmdname','function','helpinfo']
@@ -192,7 +192,7 @@ class ExtKeyParse:
 			if self.__type == 'dict' and self.__flagname:
 				# in the prefix we will get dict ok
 				raise Exception('(%s) flag can not accept dict'%(self.__origkey))
-			if self.__type != str(TypeClass(self.__value)) and self.__type != 'count' and self.__type != 'help':
+			if self.__type != str(TypeClass(self.__value)) and self.__type != 'count' and self.__type != 'help' and self.__type != 'jsonfile':
 				raise Exception('(%s) value (%s) not match type (%s)'%(self.__origkey,self.__value,self.__type))
 			if self.__flagname is None :
 				# we should test if the validate flag
@@ -297,7 +297,7 @@ class ExtKeyParse:
 
 
 
-	def __parse(self,prefix,key,value,isflag,ishelp):
+	def __parse(self,prefix,key,value,isflag,ishelp,isjsonfile):
 		flagmod = False
 		cmdmod = False
 		flags = None
@@ -313,7 +313,7 @@ class ExtKeyParse:
 				pass
 			if ok == 0 :
 				raise Exception('(%s) has ($) more than one'%(self.__origkey))
-		if isflag or ishelp:
+		if isflag or ishelp or isjsonfile:
 			m = self.__flagexpr.findall(self.__origkey)
 			if m and len(m)>0:
 				flags = m[0]
@@ -395,11 +395,14 @@ class ExtKeyParse:
 			self.__isflag = True
 			self.__iscmd = False
 		self.__value = value
-		if not ishelp:
+		if not ishelp and not isjsonfile:
 			self.__type = str(TypeClass(value))
-		else:
+		elif ishelp:
 			self.__type = 'help'
 			self.__nargs = 0
+		elif isjsonfile:
+			self.__type = 'jsonfile'
+			self.__nargs = 1
 		if self.__type == 'help' and value is not None:
 			raise Exception('help type must be value None')
 		if cmdmod and self.__type != 'dict':
@@ -451,7 +454,7 @@ class ExtKeyParse:
 
 
 
-	def __init__(self,prefix,key,value,isflag=False,ishelp=False):
+	def __init__(self,prefix,key,value,isflag=False,ishelp=False,isjsonfile=False):
 		key = Utf8Encode(key).get_val()
 		prefix = Utf8Encode(prefix).get_val()
 		value = Utf8Encode(value).get_val()
@@ -468,7 +471,7 @@ class ExtKeyParse:
 		if isinstance(key,dict):
 			raise Exception('can not accept key for dict type')
 		else:
-			self.__parse(prefix,key,value,isflag,ishelp)
+			self.__parse(prefix,key,value,isflag,ishelp,isjsonfile)
 		return
 
 	def __form_word(self,keyname):
@@ -507,7 +510,8 @@ class ExtKeyParse:
 			if not self.__isflag:
 				return 0
 			if self.__type == 'int' or self.__type == 'list' or self.__type == 'long' or \
-				self.__type == 'float' or self.__type == 'unicode' or self.__type == 'string':
+				self.__type == 'float' or self.__type == 'unicode' or self.__type == 'string' or \
+				self.__type == 'jsonfile':
 				return 1
 			return 0
 
@@ -1182,6 +1186,16 @@ class UnitTestCase(unittest.TestCase):
 		self.assertEqual(flags.varname,'rdep_ip_modules')
 		return
 
+	def test_A040(self):
+		flag1 = ExtKeyParse('prefix','json!func=args_opt_func;wait=cc!',None,False,False,True)
+		flag2 = ExtKeyParse('prefix','json!func=args_opt_func;wait=cc!',None,False)
+		self.assertFalse(flag1 == flag2)
+		flag3 = ExtKeyParse('prefix','json!func=args_opt_func;wait=cc!',None,False,False,True)
+		flag4 = ExtKeyParse('prefix','json!func=args_opt_func;wait=cc!',None,False,False,True)
+		self.assertTrue(flag3 == flag4)
+		self.assertEqual(flag3.optdest,'prefix_json')
+		self.assertEqual(flag3.longopt,'--prefix-json')
+		return
 
 
 def main():
