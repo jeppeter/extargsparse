@@ -1,4 +1,4 @@
-import argparse
+
 import os
 import sys
 import json
@@ -10,18 +10,32 @@ if sys.version[0] == '2':
 else:
     import io as StringIO
 
+
+##release not use modules
+import unittest
+import inspect
+import subprocess
+import tempfile
+import platform
+
+
 %EXTARGSPARSE_STRIP_CODE%
 
-def __shell_out_list(argopts,args,keycls,keyname=None):
+def __shell_out_list(argopts,args,keycls,keyname=None,defval=None):
     s = ''
     s += 'unset %s\n'%(keycls.varname)
     s += 'declare -A -g %s\n'%(keycls.varname)
     i = 0
     if keyname is None:
         keyname = keycls.optdest
-    for c in getattr(args,keycls.optdest):
-        s += '%s[%d]=\'%s\'\n'%(keycls.varname,i,c)
-        i += 1
+    if defval is not None:
+        for c in defval:
+            s += '%s[%d]=\'%s\'\n'%(keycls.varname,i,c)
+            i += 1            
+    else:
+        for c in getattr(args,keyname):
+            s += '%s[%d]=\'%s\'\n'%(keycls.varname,i,c)
+            i += 1
     return s
 
 def __shell_output_command(argopts,parser,args,cmdname=''):
@@ -33,20 +47,26 @@ def __shell_output_command(argopts,parser,args,cmdname=''):
             if len(cname) > 0:
                 cname += '.'
             cname += c
-            s += __shell_output_command(argopts,parseer,args,cname)
+            s += __shell_output_command(argopts,parser,args,cname)
     opts = parser.get_cmdopts(cmdname)
     if opts is not None:
         for opt in opts:
             if opt.type == 'args':
                 if (args.subcommand is not None and (cmdname is not None and args.subcommand == cmdname) ) or \
                     (args.subcommand is None and ( cmdname is None or cmdname == '')):
+                    keyname = opt.varname
+                    defval = None
                     if args.subcommand is not None:
-                        keyname = 'subnargs'
+                        defval = args.subnargs
                     else:
-                        keyname = 'args'
-                    s += __shell_out_list(argopts,args,opt,keyname)
+                        defval =args.args
+                    s += __shell_out_list(argopts,args,opt,keyname,defval)
+                else:
+                    keyname = opt.varname
+                    if keyname != 'args' and keyname != 'subnargs':
+                        s += __shell_out_list(argopts,args,opt,keyname,[])
                 continue
-            elif opt.type == 'jsonfile':
+            elif opt.type == 'jsonfile' or opt.type == 'help':
                 continue
 
             if opt.type == 'list':
@@ -62,7 +82,7 @@ def __shell_output_command(argopts,parser,args,cmdname=''):
                     s += '%s=\'%s\''%(opt.varname,val)
                 else:
                     s += '%s=\n'%(opt.varname)
-            elif opt.type == 'long' or opt.type == 'int':
+            elif opt.type == 'long' or opt.type == 'int' or opt.type == 'count' :
                 val = getattr(args,opt.optdest,0)
                 s += '%s=%s\n'%(opt.varname,val)
             elif opt.type == 'float':
@@ -94,7 +114,52 @@ def format_bash_output(args,options,params=None):
 
 
 
-class ExtArgsParser4shTest(unittest.TestCase):
+
+class release_test_cases(unittest.TestCase):
+    def setUp(self):
+        keyname = '_%s__logger'%(self.__class__.__name__)
+        if getattr(self,keyname,None) is None:
+            self.__logger = _LoggerObject()
+            self.info('create logger')
+
+        if 'EXTARGSPARSE_JSON' in os.environ.keys():
+            del os.environ['EXTARGSPARSE_JSON']
+        delone = True
+        while delone:
+            delone = False
+            for k in os.environ.keys():
+                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('RDEP_'):
+                    del os.environ[k]
+                    delone = True
+                    break
+        return
+
+    def info(self,msg,callstack=1):
+        return self.__logger.info(msg,(callstack + 1))
+
+    def error(self,msg,callstack=1):
+        return self.__logger.error(msg,(callstack + 1))
+
+    def warn(self,msg,callstack=1):
+        return self.__logger.warn(msg,(callstack + 1))
+
+    def debug(self,msg,callstack=1):
+        return self.__logger.debug(msg,(callstack + 1))
+
+    def fatal(self,msg,callstack=1):
+        return self.__logger.fatal(msg,(callstack + 1))
+
+    def tearDown(self):
+        pass
+
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    @classmethod
+    def tearDownClass(cls):
+        pass
+
 
     def __has_line(self,sarr,s):
         ok = False
@@ -114,6 +179,16 @@ class ExtArgsParser4shTest(unittest.TestCase):
                 break
         return ok
 
+    def __get_argsopt(self):
+        argsopt = NameSpace()
+        argsopt.caption = 'extargsparse4sh_test'
+        return argsopt
+
+    def __get_bash_output(self,options,params):
+        argsopt = self.__get_argsopt()
+        s = format_bash_output(argsopt,options,params)
+        return s
+
 
     def __check_value_common(self,s,key,value):
         sarr = re.split('\n',s)
@@ -127,6 +202,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
         ok = self.__has_line(sarr,'declare -A -g %s'%(key))
         self.assertEqual(ok,True)
         ok = self.__has_line(sarr,'unset %s'%(key))
+        self.assertEqual(ok,True)
         if len(value) == 0:
             # now we should get the 
             ok = self.__line_prefix(sarr,'%s[%d]='%(key,0))
@@ -153,16 +229,14 @@ class ExtArgsParser4shTest(unittest.TestCase):
         self.assertEqual(ok,False)
         return
 
-    def test_A022(self):
+    def test_A001(self):
         commandline= '''
         {
             "verbose|v" : "+",
             "port|p" : 3000
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000'])
         self.__check_value_common(s,'port',5000)
         self.__check_value_common(s,'verbose',4)
         self.__check_value_list(s,'args',[])
@@ -171,23 +245,21 @@ class ExtArgsParser4shTest(unittest.TestCase):
         self.__check_not_common(s,'json')
         return
 
-    def test_A023(self):
+    def test_A002(self):
         commandline='''
         {
             "$verbose|v<verbosemode>" : "+",
             "port|p<portnum>" : 7000
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000'])
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_list(s,'args',[])
         self.__check_not_common(s,'json')
         return
 
-    def test_A024(self):
+    def test_A003(self):
         commandline='''
         {
             "$verbose|v<verbosemode>" : "+",
@@ -199,9 +271,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
             }
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000','dep','cc','dd'])
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_common(s,'dep_http',1)
@@ -211,7 +281,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
         self.__check_not_common(s,'dep_json')
         return
 
-    def test_A025(self):
+    def test_A004(self):
         commandline='''
         {
             "$verbose|v<verbosemode>" : "+",
@@ -223,9 +293,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
             }
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000','dep','cc','dd'])
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_common(s,'dep_http',1)
@@ -235,7 +303,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
         self.__check_not_common(s,'dep_json')
         return
 
-    def test_A026(self):
+    def test_A005(self):
         commandline='''
         {
             "$verbose|v<verbosemode>" : "+",
@@ -252,9 +320,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
             }
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc','dd'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000','dep','cc','dd'])
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_common(s,'dep_http',1)
@@ -269,7 +335,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
         return
 
 
-    def test_A027(self):
+    def test_A006(self):
         commandline='''
         {
             "$verbose|v<verbosemode>" : "+",
@@ -286,9 +352,7 @@ class ExtArgsParser4shTest(unittest.TestCase):
             }
         }
         '''
-        parser = ExtArgsParse()
-        parser.load_command_line_string(commandline)
-        s = parser.shell_eval_out(['-vvvv','-p','5000','dep','cc ee','dd'])
+        s = self.__get_bash_output(options=commandline,params=['-vvvv','-p','5000','dep','cc ee','dd'])
         self.__check_value_common(s,'portnum',5000)
         self.__check_value_common(s,'verbosemode',4)
         self.__check_value_common(s,'dep_http',1)
@@ -316,8 +380,14 @@ def set_log_level(args):
     logging.basicConfig(level=loglvl,format='%(asctime)s:%(filename)s:%(funcName)s:%(lineno)d\t%(message)s')
     return
 
+def reset_extargs_logger(args):
+    os.environ['EXTARGSPARSE_LOGLEVEL']  = '%d'%(args.verbose)
+    logger = logging.getLogger('extargsparse')
+    logger.handlers = []
+    return
+
 def parse_inner(args):
-    set_log_level(args)
+    reset_extargs_logger(args)
     commandline = ''
     fin = sys.stdin
     if args.input is not None:
@@ -331,11 +401,190 @@ def parse_inner(args):
     for a in args.args:
         logging.info('[%d]=%s'%(i,a))
         i += 1        
-    parser = ExtArgsParse(usage='%s [OPTIONS] ...'%(args.caption))
-    parser.load_command_line_string(commandline)    
-    s = parser.shell_eval_out(args.args,None)
+    s = format_bash_output(args,options=commandline,params=args.args)
     sys.stdout.write('%s'%(s))
     return
+
+def cmd_change_test(args):
+    reset_extargs_logger(args)
+    if args.verbose >=1 and ('-v' not in args.args and '--verbose' not in args.args):
+        args.args.append('-v')
+    sys.argv[1:]=args.args
+    unittest.main()
+    return
+
+def release_runcmd(cmd):
+    p = subprocess.Popen(cmd,shell=True)
+    return p
+
+def release_copy_own(tempf):
+    cmd =''
+    runcmd = ''
+    if platform.uname()[0].lower() == 'windows':
+        tempd='%s'%(os.environ['TEMP'])
+        fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
+        os.close(fd)
+        cmd += '@echo off\n'
+        cmd += 'timeout /t 1\n'
+        cmd += 'copy /Y %s %s\n'%(tempf,os.path.abspath(__file__))
+        cmd += 'del %s\n'%(bashfile)
+        runcmd = '%s'%(os.path.abspath(bashfile))
+    elif platform.uname()[0].lower() == 'linux':
+        tempd = '%s'%(os.environ['TEMP'])
+        fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
+        cmd += 'sleep 1\n'
+        cmd += 'cp -f %s %s\n'%(tempf,os.path.abspath(__file__))
+        cmd += 'rm -f %s\n'%(bashfile)
+        runcmd = 'bash %s'%(os.path.abspath(bashfile))
+    else:
+        raise Exception('not supported os %s'%(platform.uname()))
+    bashfile = os.path.abspath(bashfile)
+    print('bashfile %s'%(bashfile))
+    with open(bashfile,'w+') as f:
+        f.write(cmd)
+    release_runcmd(runcmd)
+    return
+
+class release_excludes(_LoggerObject):
+    def __init__(self):
+        super(release_excludes,self).__init__()
+        self.__passlines = dict()
+        self.__changelines = dict()
+        return
+
+    def add_pass_lines(self,name,start,end):
+        self.__passlines[name] = [start,end]
+        return
+
+    def is_passed(self,lineno):
+        for k in self.__passlines.keys():
+            if lineno >= self.__passlines[k][0] and lineno < self.__passlines[k][1]:
+                return True
+        return False
+    def add_change_lines(self,name,start,end):
+        self.__changelines[name] = [start,end]
+        return
+
+    def is_changed(self,lineno):
+        for k in self.__changelines.keys():
+            if lineno == self.__changelines[k][0]:
+                return 2
+            elif lineno > self.__changelines[k][0] and lineno < self.__changelines[k][1]:
+                return 1
+        return 0
+
+    def get_changed(self,lineno):
+        for k in self.__changelines.keys():
+            if lineno == self.__changelines[k][0]:
+                return k
+            elif lineno > self.__changelines[k][0] and lineno < self.__changelines[k][1]:
+                return k
+        return None
+
+
+    def __str__(self):
+        s = '@'
+        if len(self.__passlines.keys()) > 0:
+            s += '<passed>:{'
+            i = 0
+            for k in self.__passlines.keys():
+                if i > 0:
+                    s += ';'
+                s += '%s:[%d,%d]'%(k,self.__passlines[k][0],self.__passlines[k][1])
+                i += 1
+            s += '}'
+        if len(self.__changelines.keys()) > 0:
+            s += '<changed>:{'
+            i = 0
+            for k in self.__changelines.keys():
+                if i > 0:
+                    s += ';'
+                s += '%s:[%d,%d]'%(k,self.__changelines[k][0],self.__changelines[k][1])
+                i += 1
+            s += '}'
+        return s
+
+
+
+def release_get_passlines(mainm,excludes=[],cmdchanges=dict()):
+    passlines = release_excludes()
+    for d in dir(mainm):
+        if d in excludes:
+            v = getattr(mainm,d)
+            if inspect.isclass(v) or inspect.isfunction(v) or \
+                inspect.ismethod(v):
+                s,l=inspect.getsourcelines(v)
+                passlines.add_pass_lines(d,l,l + len(s))
+        elif d in cmdchanges.keys():
+            v = getattr(mainm,d)
+            if inspect.isclass(v) or inspect.isfunction(v) or \
+                inspect.ismethod(v):
+                s,l=inspect.getsourcelines(v)
+                passlines.add_change_lines(d,l,l+len(s))
+    return passlines
+
+def release_write_file(mainlines,passlines,cmdchanges=dict()):
+    tempd = os.environ['TEMP']
+    fd ,writetemp = tempfile.mkstemp(suffix='.py',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
+    os.close(fd)
+    with open(writetemp,'w+') as fout:
+        i = 0
+        for l in mainlines:
+            i += 1
+            if passlines.is_passed(i) or passlines.is_changed(i) == 1:
+                continue
+            elif passlines.is_changed(i) == 2:
+                k = passlines.get_changed(i)
+                assert(k is not None)
+                assert(k in cmdchanges.keys())
+                fout.write('%s\n'%(cmdchanges[k]))
+                continue
+            fout.write('%s\n'%(l))
+    return writetemp
+            
+
+def cmd_change_release(args):
+    mainm = importlib.import_module('__main__')
+    mainlines = []
+    with open(mainm.__file__,'r+') as f:
+        for l in f:
+            l = l.rstrip('\r\n')
+            mainlines.append(l)
+    excludes = []
+    cmdchanges = dict()
+    for k in dir(mainm):
+        if k.startswith('release_'):
+            excludes.append(k)
+        elif k.startswith('cmd_change_'):
+            cmdchanges[k] = 'def %s(args):\n\traise Exception(\'%s not supported in release mode\')\n'%(k,k)
+    passlines = release_get_passlines(mainm,excludes,cmdchanges)
+    searchmodules=0
+    importstart=-1
+    importend =-1
+    i = 0
+    for l in mainlines:
+        l = l.rstrip('\r\n')
+        i += 1
+        if searchmodules == 1:
+            if not l.startswith('import '):
+                importend = i
+                searchmodules=2
+        elif searchmodules == 0:
+            if l.startswith('##release '):
+                searchmodules = 1
+                importstart=(i+1)
+    if importstart >= 0 and importend >= 0:
+        passlines.add_pass_lines('importlib_excludes',importstart,importend)
+    else:
+        logging.warn('can not find imported')
+
+    logging.info('passlines %s'%(passlines))
+    logging.info('lines %d'%(len(mainlines)))
+    writetemp = release_write_file(mainlines,passlines,cmdchanges)
+    logging.info('writetemp %s'%(writetemp))
+    release_copy_own(writetemp)
+    return
+
 
 def main():
     inner_command='''
@@ -344,22 +593,31 @@ def main():
         "catch|C## to not catch the exception ##" : true,
         "input|i## to specify input default(stdin)##" : null,
         "$caption## set caption ##" : "runcommand",
+        "test|t##to test mode##" : false,
+        "release|R##to release test mode##" : false,
         "$" : "*"
     }
     '''
     parser = ExtArgsParse()
     parser.load_command_line_string(inner_command)
     args = parser.parse_command_line()
-    if args.catch:
-        try:
-            parse_inner(args)
-        except:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            sys.stdout.write('cat <<EOM\n%s:%s:%s\nEOM\n'%(exc_type,exc_value,exc_traceback))
-            sys.stdout.write('exit 3')
-            sys.exit(3)
+    set_log_level(args)
+    if args.test:
+        cmd_change_test(args)
+    elif args.release:
+        cmd_change_release(args)
     else:
-        parse_inner(args)
+        if args.catch:
+            try:
+                parse_inner(args)
+            except:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                sys.stdout.write('cat <<EOM\n%s:%s:%s\nEOM\n'%(exc_type,exc_value,exc_traceback))
+                sys.stdout.write('exit 3')
+                sys.exit(3)
+        else:
+            parse_inner(args)
     return
 
-main()
+if __name__ == '__main__':
+    main()

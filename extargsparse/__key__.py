@@ -4,8 +4,10 @@ import os
 import sys
 import logging
 import re
-import unittest
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+##release not use modules
+import unittest
 
 
 class KeyAttr(object):
@@ -588,7 +590,7 @@ class ExtKeyParse(object):
 
 
 
-class UnitTestCase(unittest.TestCase):
+class release_key_test_case(unittest.TestCase):
 	def __opt_fail_check(self,flags):
 		ok = False
 		try:
@@ -1198,10 +1200,10 @@ class UnitTestCase(unittest.TestCase):
 		return
 
 
-def main():
+def release_main():
 	if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
 		logging.basicConfig(level=logging.INFO,format="%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s")	
 	unittest.main()
 
 if __name__ == '__main__':
-	main()
+	release_main()

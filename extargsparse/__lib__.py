@@ -4,16 +4,19 @@ import os
 import sys
 import json
 import logging
-import unittest
 import re
 import importlib
-import tempfile
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import __key__ as keyparse
 if sys.version[0] == '2':
     import StringIO
 else:
     import io as StringIO
+
+##release not use modules
+import unittest
+import tempfile
+
 
 COMMAND_SET = 10
 SUB_COMMAND_JSON_SET = 20
@@ -36,7 +39,7 @@ def set_attr_args(self,args,prefix):
 
 class _LoggerObject(object):
     def __init__(self):
-        self.__logger = logging.getLogger(self.__class__.__name__)
+        self.__logger = logging.getLogger('extargsparse')
         if len(self.__logger.handlers) == 0:
             loglvl = logging.WARN
             if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
@@ -1441,14 +1444,14 @@ class ExtArgsParse(_LoggerObject):
 
 
 
-def call_args_function(args,context):
+def release_args_function(args,context):
     if hasattr(args,'subcommand'):
         context.has_called_args = args.subcommand
     else:
         context.has_called_args = None
     return
 
-class ExtArgsTestCase(unittest.TestCase):
+class release_extargs_test_case(unittest.TestCase):
     def setUp(self):
         keyname = '_%s__logger'%(self.__class__.__name__)
         if getattr(self,keyname,None) is None:
@@ -1603,7 +1606,7 @@ class ExtArgsTestCase(unittest.TestCase):
         {
             "verbose|v" : "+",
             "port|p" : 3000,
-            "dep<%s.call_args_function>" : {
+            "dep<%s.release_args_function>" : {
                 "list|l" : [],
                 "string|s" : "s_var",
                 "$" : "+"
@@ -2604,12 +2607,12 @@ class ExtArgsTestCase(unittest.TestCase):
 
 
 
-def main():
+def release_main():
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
         os.environ['EXTARGSPARSE_LOGLEVEL'] = '4'
     unittest.main()
 
 if __name__ == '__main__':
-    main()  
+    release_main()  
 
 
