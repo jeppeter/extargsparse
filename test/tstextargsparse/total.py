@@ -1,8 +1,14 @@
 #!/usr/bin/python
 import tempfile
-import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
+import os
+
+_extargs_parent_dir = os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)),'..','..'))
+if _extargs_parent_dir not in sys.path:
+	_temp_path = sys.path
+	sys.path = [_extargs_parent_dir]
+	sys.path.extend(_temp_path)
+
 import extargsparse
 
 

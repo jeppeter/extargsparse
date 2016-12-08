@@ -212,7 +212,7 @@ class _ParserCompact(_LoggerObject):
         self.version = None
         return
 
-    def __get_opt_help(self,opt):
+    def __get_opt_help(self,opt):        
         lname = opt.longopt
         sname = opt.shortopt
         optname = lname 
@@ -234,10 +234,12 @@ class _ParserCompact(_LoggerObject):
         helpsize.cmdnamesize = len(cmdname)
         helpsize.cmdhelpsize = len(cmdhelp)
         for opt in self.cmdopts:
+            if opt.type == 'args' :
+                continue
             optname,optexpr,opthelp = self.__get_opt_help(opt)
-            helpsize.optnamesize = len(optname)
-            helpsize.optexprsize = len(optexpr)
-            helpsize.opthelpsize = len(opthelp)
+            helpsize.optnamesize = len(optname) + 1
+            helpsize.optexprsize = len(optexpr) + 1
+            helpsize.opthelpsize = len(opthelp) + 1        
 
         if recursive != 0:
             for cmd in self.subcommands:
@@ -245,13 +247,16 @@ class _ParserCompact(_LoggerObject):
                     helpsize = cmd.get_help_size(helpsize,recursive-1)
                 else:
                     helpsize = cmd.get_help_size(helpsize,recursive)
+        for cmd in self.subcommands:
+            helpsize.cmdnamesize = len(cmd.cmdname) + 2
+            helpsize.cmdhelpsize = len(cmd.helpinfo)
         return helpsize
 
     def __get_cmd_help(self,cmd):
         cmdname = ''
         cmdhelp = ''
         if cmd.cmdname is not None:
-            cmdname = '%s'%(cmd.cmdname)
+            cmdname = '[%s]'%(cmd.cmdname)
         if cmd.helpinfo is not None:
             cmdhelp = '%s'%(cmd.helpinfo)
         return cmdname,cmdhelp
@@ -296,10 +301,10 @@ class _ParserCompact(_LoggerObject):
         if len(self.cmdopts) > 0:
             s += '[OPTIONS]\n'
             for opt in self.cmdopts:
+                if opt.type == 'args' :
+                    continue
                 optname,optexpr,opthelp = self.__get_opt_help(opt)
-                s += '\t%-*s %-*s %-*s\n'%(helpsize.optnamesize,optname,
-                    helpsize.optexprsize,optexpr,
-                    helpsize.opthelpsize,opthelp)
+                s += '\t%-*s %-*s %-*s\n'%(helpsize.optnamesize,optname,helpsize.optexprsize,optexpr,helpsize.opthelpsize,opthelp)
         if len(self.subcommands)>0:
             s += '[SUBCOMMANDS]\n'
             for cmd in self.subcommands:
@@ -513,10 +518,12 @@ class _ParseState(_LoggerObject):
 class NameSpace(object):
     def __init__(self):
         self.__obj = dict()
+        self.__logger = _LoggerObject()
         return
 
     def __setattr__(self,key,val):
         if not key.startswith('_'):
+            self.__logger.info('%s=%s'%(key,val),2)
             self.__obj[key] = val
             return
         self.__dict__[key] = val
@@ -797,9 +804,8 @@ class ExtArgsParse(_LoggerObject):
     def __format_cmdname_path(self,curparser=None):
         cmdname = ''
         if curparser is not None:
-            i = 0
             for c in curparser:
-                if i > 0:
+                if len(cmdname) > 0:
                     cmdname += '.'
                 cmdname += c.cmdname
         return cmdname
@@ -945,26 +951,26 @@ class ExtArgsParse(_LoggerObject):
         curcmd = self.__maincmd
         cmdpaths = []
         if cmdparser is not  None:
+            self.info('cmdparser %s'%(self.format_string(cmdparser)))
             curcmd = cmdparser[-1]
             i = 0
             while i < len(cmdparser) - 1:
                 cmdpaths.append(cmdparser[i])
                 i += 1
-        return curcmd.get_help_info(0,cmdpaths)
+        return curcmd.get_help_info(None,cmdpaths)
 
     def print_help(self,fp=sys.stderr,cmdname=''):
         paths = self.__find_commands_in_path(cmdname)
-        cmd = None
-        if len(paths) > 0:
-            cmd = paths[-1]
-        s = self.__print_help(cmd)
-        if len(__output_mode) > 0 :
+        if paths is  None:
+            self.error_msg('can not find [%s] cmd'%(cmdname))
+        s = self.__print_help(paths)
+        if len(self.__output_mode) > 0 :
             if self.__output_mode[-1] == 'bash':
                 outs = 'cat <<EOFMM\n%s\nEOFMM\nexit 0'%(s)
                 sys.stdout.write(outs)
                 sys.exit(0)
         fp.write(s)
-        sys.exit(0)
+        #sys.exit(0)
         return
 
     def __set_jsonvalue_not_defined(self,args,cmd,key,value):
@@ -1096,6 +1102,8 @@ class ExtArgsParse(_LoggerObject):
         return args
 
     def __set_command_line_self_args(self,paths=None):
+        if self.__ended != 0:
+            return
         parentpaths = [self.__maincmd]
         if paths is not None:
             parentpaths = paths
@@ -1272,13 +1280,12 @@ class ExtArgsParse(_LoggerObject):
 
 
     def end_options(self):
-        self.__ended = 1
         self.__set_command_line_self_args()
+        self.__ended = 1
         return
 
 
     def parse_command_line(self,params=None,Context=None,mode=None):
-        self.__ended = 1
         # we input the self command line args by default
         pushmode = False
         if mode is not None:
@@ -1287,6 +1294,7 @@ class ExtArgsParse(_LoggerObject):
         args = NameSpace()
         try:
             self.__set_command_line_self_args()
+            self.__ended = 1
             if params is None:
                 params = sys.argv[1:]
             args = self.parse_args(params)
@@ -1326,6 +1334,8 @@ class ExtArgsParse(_LoggerObject):
 
 
     def get_subcommands(self,cmdname=None):
+        if self.__ended == 0:
+            raise Exception('should call parse_command_line or end_options before')
         return self.__get_subcommands(cmdname)
 
     def __get_cmdopts(self,cmdname,cmdpaths=None):
@@ -1344,6 +1354,8 @@ class ExtArgsParse(_LoggerObject):
         return None
 
     def get_cmdopts(self,cmdname=None):
+        if self.__ended == 0:
+            raise Exception('should call parse_command_line or end_options before')
         return self.__get_cmdopts(cmdname)
 
 
@@ -2335,10 +2347,256 @@ class ExtArgsTestCase(unittest.TestCase):
         self.assertEqual(args.subnargs,[])
         return
 
+    def test_A025(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        rdepjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            httpvmstr = "True"
+            httpvmval = eval(httpvmstr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd,rdepjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{ "http" : { "url" : "http://www.github.com"} ,"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+            with open(rdepjsonfile,'w+') as f:
+                f.write('{"ip": {"list":["rdepjson1","rdepjson3"],"verbose": 5}}\n')
+            delone = True
+            while delone:
+                delone = False
+                for k in os.environ.keys():
+                    if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('HTTP_') or k.startswith('RDEP_'):
+                        del os.environ[k]
+                        delone = True
+                        break
+
+            os.environ['EXTARGSPARSE_JSON'] = jsonfile
+            os.environ['DEP_JSON'] = depjsonfile
+            os.environ['RDEP_JSON'] = rdepjsonfile
+
+            parser = ExtArgsParse()
+            self.assertTrue( 'DEP_STRING' not in os.environ.keys())
+            self.assertTrue( 'DEP_LIST' not in os.environ.keys()) 
+            self.assertTrue( 'HTTP_VISUAL_MODE' not in os.environ.keys())
+            parser.load_command_line_string(commandline)
+            
+            args = parser.parse_command_line(['-p','9000','rdep','ip','--rdep-ip-verbose','--rdep-ip-cc','ee','ww'])
+            
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+            os.environ['HTTP_VISUAL_MODE']=httpvmstr
+            self.assertTrue( 'DEP_STRING' in os.environ.keys())
+            self.assertTrue( 'DEP_LIST'  in os.environ.keys()) 
+            self.assertTrue( 'HTTP_VISUAL_MODE'  in os.environ.keys())
+
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port,9000)
+            self.assertEqual(args.dep_string,'jsonstring')
+            self.assertEqual(args.dep_list,['jsonval1', 'jsonval2'])
+            self.assertEqual(args.http_visual_mode,False)
+            self.assertEqual(args.http_url,'http://www.github.com')
+            self.assertEqual(args.subnargs,['ww'])
+            self.assertEqual(args.subcommand,'rdep.ip')
+            self.assertEqual(args.rdep_ip_verbose,1)
+            self.assertEqual(args.rdep_ip_cc,['ee'])
+            self.assertEqual(args.rdep_ip_list,['rdepjson1','rdepjson3'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if rdepjsonfile is not None:
+                os.remove(rdepjsonfile)
+            rdepjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+            if 'EXTARGSPARSE_JSON' in os.environ.keys():
+                del os.environ['EXTARGSPARSE_JSON']
+            if 'DEP_JSON' in os.environ.keys():
+                del os.environ['DEP_JSON']
+        return
+
+    def __split_strings(self,longstr):
+        sarr = re.split('\n',longstr)
+        retsarr = []
+        for s in sarr:
+            s = s.strip('\r\n')
+            retsarr.append(s)
+        return retsarr
+
+    def __assert_string_expr(self,sarr,strexpr):
+        #self.info('strexpr (%s)'%(strexpr))
+        expr = re.compile(strexpr)
+        ok = False
+        for s in sarr:
+            if expr.match(s):
+                ok = True
+                break
+        return ok
+
+    def __get_opt_ok(self,sarr,keycls):
+        if keycls.type == 'args':
+            return True
+        exprstr = '^\\s+%s'%(keycls.longopt)
+        if keycls.shortopt is not None:
+            exprstr += '\\|%s'%(keycls.shortopt)
+        exprstr += r'\s+'
+        exprstr += '%s\\s.*'%(keycls.optdest)
+        return self.__assert_string_expr(sarr,exprstr)
 
 
+    def test_A026(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        parser = ExtArgsParse(prog='cmd1')
+        parser.load_command_line_string(commandline)
+        parser.end_options()
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        #self.info('\n%s'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        opts = parser.get_cmdopts()
+        for opt in opts:
+            self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+        
+        #self.assertEqual(self.__assert_string_expr(sarr,'^'))
+        sio = StringIO.StringIO()
+        parser.print_help(sio,'rdep')
+        #self.info('\n%s'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        opts = parser.get_cmdopts('rdep')
+        for opt in opts:
+            self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+        sio = StringIO.StringIO()
+        parser.print_help(sio,'rdep.ip')
+        #self.info('\n%s'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        opts = parser.get_cmdopts('rdep.ip')
+        for opt in opts:
+            self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+        return
 
-
+    def test_A027(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l!attr=cc;optfunc=list_opt_func!" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        parser.end_options()
+        opts = parser.get_cmdopts('dep')
+        attr= None
+        for opt in opts:
+            if opt.type == 'args':
+                continue
+            if opt.flagname == 'list':
+                attr = opt.attr
+                break
+        self.assertTrue(attr is not None)
+        self.assertEqual(attr.attr,'cc')
+        self.assertTrue(attr.optfunc,'list_opt_func')
+        return
 
 
 
@@ -2350,4 +2608,5 @@ def main():
 
 if __name__ == '__main__':
     main()  
+
 

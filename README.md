@@ -7,7 +7,7 @@ import extargsparse
 import sys
 commandline = '''
 {
-	"verbose|v<verbosemode>##increment verbose mode##" : "+",
+	"verbose|v<verbosemode>!attr=new;optfunc=verbose_opt_func!##increment verbose mode##" : "+",
 	"flag|f<flagmode>## flag set##" : false,
 	"number|n" : 0,
 	"list|l<listarr>" : [],
@@ -26,10 +26,6 @@ def main():
     print ('list = %s'%(args.list))
     print ('string = %s'%(args.string))
     print ('args = %s'%(args.args))
-    s = parser.shell_eval_out()
-    sys.stdout.write('\n')
-    sys.stdout.write('shell output:\n')
-    sys.stdout.write('%s'%(s))
     return
 
 if __name__ == '__main__':
@@ -403,50 +399,103 @@ string = 's_var'
 subnargs = ['cc','dd']
 ```
 
-### shellout example
+
+### extension get example
+
 ```python
-import extargsparse
+#! /usr/bin/env python
+
 import sys
-commandline = '''
-{
-  "verbose|v<verbosemode>##increment verbose mode##" : "+",
-  "flag|f<flagmode>## flag set##" : false,
-  "number|n" : 0,
-  "list|l<listarr>" : [],
-  "string|s" : "string_var",
-  "dep<CHOICECOMMAND>" : {
-      "$<DEPAPPS>" : "+"
-  }
-}
-'''
+import os
+_extargs_parent_dir = os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)),'..','..'))
+if _extargs_parent_dir not in sys.path:
+    _temp_path = sys.path
+    sys.path = [_extargs_parent_dir]
+    sys.path.extend(_temp_path)
+
+import extargsparse
+
+def load_s_1(parser):
+    load1 = '''
+    {
+      "verbose|v" : "+",
+      "port|p" : 3000,
+      "dep" : {
+        "list|l" : [],
+        "string|s" : "s_var",
+        "$" : "+"
+      }
+    }
+    '''
+    parser.load_command_line_string(load1)
+    return parser
+
+def load_s_2(parser):
+    load2 = '''
+    {
+      "rdep" : {
+        "list|L" : [],
+        "string|S" : "s_rdep",
+        "$" : 2
+      }
+    }
+    '''
+    parser.load_command_line_string(load2)
+    return parser
+
+def debug_cmd_opts(parser,name=''):
+    opts = parser.get_cmdopts(name)
+    if opts is not None :
+        for opt in opts:
+            if opt.type == 'args':
+                continue
+            print('[%s] opt %s'%(name,opt.longopt))
+    subcmds = parser.get_subcommands(name)
+    if subcmds is not None:
+        print('[%s] subcmds %s'%(name,subcmds))
+    return subcmds
+
+def debug_total(parser,name=''):
+    subcmds = debug_cmd_opts(parser,name)
+    if subcmds is not None and len(subcmds) > 0:
+        for c in subcmds:
+            cname = ''
+            cname += '%s'%(name)
+            if len(cname) > 0:
+                cname += '.'
+            cname += '%s'%(c)
+            debug_total(parser,cname)
+    return
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
-    parser.load_command_line_string(commandline)
-    s = parser.shell_eval_out()
-    sys.stdout.write('shell output:\n')
-    sys.stdout.write('%s'%(s))
+    parser = extargsparse.ExtArgsParse()
+    parser = load_s_1(parser)
+    parser = load_s_2(parser)
+    parser.end_options()
+    debug_total(parser)
     return
 
 if __name__ == '__main__':
-    main()
+  main()  
 ```
 
-> if the command line like this
-> python test.py -vvv dep ccc
-
-> result is like this
-
+> result will be
 ```shell
-shell output:
-flagmode=0
-string=string_var
-number=0
-verbosemode=3
-declare -A listarr
-CHOICECOMMAND=dep
-declare -A DEPAPPS
-DEPAPPS[0]=ccc
+[] opt --json
+[] opt --help
+[] opt --verbose
+[] opt --port
+[] subcmds ['dep', 'rdep']
+[dep] opt --dep-json
+[dep] opt --help
+[dep] opt --dep-string
+[dep] opt --dep-list
+[dep] subcmds []
+[rdep] opt --rdep-json
+[rdep] opt --help
+[rdep] opt --rdep-string
+[rdep] opt --rdep-list
+[rdep] subcmds []
 ```
 
 
@@ -480,9 +529,7 @@ DEPAPPS[0]=ccc
 
 * if in flagmode , follows <.*> it will be set for shell output value
   ** for example '$verbose|v<verbosemode>' : '+'
-    call shell_eval_out will add 
-    verbosemode=%d\n
-    in the return string see the [simple example](#simple-example)
+    this will add change varname from verbose to verbosemode
 
 * if the subcommand follows <.*> it will call function 
   **  for example 	'dep<__main__.dep_handler>' : {
@@ -491,9 +538,12 @@ DEPAPPS[0]=ccc
 		'$' : '+'
 	}  the dep_handler will call __main__ it is the main package ,other packages will make the name of it ,and the 
 	   args is the only one add
-  if you just call shell_eval_out it will make the function name as the variable  to set for the commandname see [shellout example](#shellout-example)
+)
 
 * special flag '$' is for args in main command '$' for subnargs in sub command
+
+
+* !*! the things between ! will be extended attribute for more use
 
 
 * special flag --json for parsing args in json file in main command
@@ -594,7 +644,6 @@ subnargs = ['cc','dd']
    **  value  the default value of flag
    **  nargs it accept args "*" for any "?" 1 or 0 "+" equal or more than 1 , number is the number
    **  helpinfo for the help information
-   **  varname for the shell eval option
 
 * flag format description
    **  if the key is flag it must with format like this 
@@ -721,3 +770,7 @@ args.http_url http://www.yahoo.com
 args.subcommand dep
 args.subnargs ['ww']
 ```
+
+
+### extension mode see example see[extension get example](#extension-get-example)
+> this is for use when other will use
