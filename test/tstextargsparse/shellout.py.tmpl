@@ -113,9 +113,7 @@ def format_bash_output(args,options,params=None):
     return s
 
 
-
-
-class release_test_cases(unittest.TestCase):
+class release_shellout_test_cases(unittest.TestCase):
     def setUp(self):
         keyname = '_%s__logger'%(self.__class__.__name__)
         if getattr(self,keyname,None) is None:
