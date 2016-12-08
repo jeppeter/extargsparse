@@ -44,18 +44,6 @@ number = 30
 list = ['bar1', 'bar2']
 string = string_var
 args = ['var1', 'var2']
-
-shell output:
-flagmode=1
-string=string_var
-declare -A args
-args[0]=var1
-args[1]=var2
-number=30
-verbosemode=4
-declare -A listarr
-listarr[0]=bar1
-listarr[1]=bar2
 ```
 
 
