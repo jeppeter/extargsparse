@@ -17,7 +17,9 @@ commandline = '''
 '''
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line()
     print ('verbose = %d'%(args.verbose))
@@ -64,7 +66,9 @@ commandline = '''
 '''
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line(['-vvvv','-p','5000','dep','-l','arg1','--dep-list','arg2','cc','dd'])
     print ('verbose = %d'%(args.verbose))
@@ -228,7 +232,9 @@ def dep_handler(args,context):
 def main():
     context = dict()
     context['base'] = 'basenum'
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line(['-vvvv','-p',5000,'dep','-l','arg1','-l','arg2','cc','dd'],context)
 ```
@@ -274,7 +280,9 @@ def dep_handler(args):
     return
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line(['-vvvv','-p',5000,'dep','-l','arg1','-l','arg2','cc','dd'])
 ```
@@ -322,7 +330,9 @@ def dep_handler(args):
     return
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line(['-vvvv','-p','5000','--http-visual-mode','dep','-l','arg1','--dep-list','arg2','cc','dd'])
 ```
@@ -371,7 +381,9 @@ def dep_handler(args):
     return
 
 def main():
-    parser = extargsparse.ExtArgsParse(usage=' sample commandline parser ')
+    options = ExtArgsOptions()
+    options.usage = ' sample commandline parser '
+    parser = extargsparse.ExtArgsParse(options)
     parser.load_command_line_string(commandline)
     args = parser.parse_command_line(['-vvvv','-p','5000','dep','-l','arg1','-l','arg2','cc','dd'])
 ```
@@ -459,7 +471,6 @@ def main():
     parser = extargsparse.ExtArgsParse()
     parser = load_s_1(parser)
     parser = load_s_2(parser)
-    parser.end_options()
     debug_total(parser)
     return
 
@@ -651,6 +662,16 @@ subnargs = ['cc','dd']
 
 * enable debug 
   ** you can specified the environment value EXTARGSPARSE_LOGLEVELV=DEBUG to enable the debug of extargsparse
+
+* ExtArgsParse() input options now supported
+  ** prog  program name default sys.argv[0]
+  ** usage usage in the help first line
+  ** description description for the command line handle
+  ** epilog  post for help information
+  ** version version number for current program
+  ** errorhandler error handler default 'exit' other can be 'raise'
+  ** helphandler default is None ,can be 'nohelp'
+  
 
 # Most Complex Example
 

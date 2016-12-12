@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+##extractstart 
 import os
 import sys
 import json
@@ -7,16 +8,18 @@ import logging
 import re
 import importlib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-import __key__ as keyparse
+import __key_debug__ as keyparse
 if sys.version[0] == '2':
     import StringIO
 else:
     import io as StringIO
 
-##release not use modules
+##importdebugstart release not use modules
 import unittest
 import tempfile
+##importdebugend release not use modules
 
+##extractend
 
 COMMAND_SET = 10
 SUB_COMMAND_JSON_SET = 20
@@ -25,8 +28,6 @@ ENVIRONMENT_SET = 40
 ENV_SUB_COMMAND_JSON_SET = 50
 ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
-
-#extargs_shell_out_mode=0
 
 def set_attr_args(self,args,prefix):
     if not issubclass(args.__class__,argparse.Namespace):
@@ -544,6 +545,36 @@ class NameSpace(object):
         s += '}'
         return s
 
+class ExtArgsOptions(object):
+    def __init__(self):
+        self.__obj = dict()
+        self.__obj['errorhandler'] = 'exit'
+        self.__obj['prog'] = sys.argv[0]
+        self.__logger = _LoggerObject()
+        return
+
+    def __setattr__(self,key,val):
+        if not key.startswith('_'):
+            #self.__logger.info('%s=%s'%(key,val),2)
+            self.__obj[key] = val
+            return
+        self.__dict__[key] = val
+        return
+
+    def __getattr__(self,key):
+        if not key.startswith('_'):
+            if key in self.__obj.keys():
+                return self.__obj[key]
+            return None
+        return self.__dict__[key]
+
+    def __str__(self):
+        s = '{'
+        for k in self.__obj.keys():
+            s += '%s=%s;'%(k,self.__obj[k])
+        s += '}'
+        return s
+
 
 class ExtArgsParse(_LoggerObject):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs']
@@ -753,15 +784,19 @@ class ExtArgsParse(_LoggerObject):
         return self.__load_command_line_help(keycls,curparser)
 
 
-    def __init__(self,prog=None,usage=None,description=None,epilog=None,version=None,errorhandler='exit',priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
+    def __init__(self,options=None,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
         super(ExtArgsParse,self).__init__()
+        if options is None:
+            options = ExtArgsOptions()
         self.__maincmd = _ParserCompact(None)
-        self.__maincmd.prog = prog
-        self.__maincmd.usage = usage
-        self.__maincmd.description = description
-        self.__maincmd.epilog = epilog
-        self.__maincmd.version = version
-        self.__error_handler = errorhandler
+
+        self.__maincmd.prog = options.prog
+        self.__maincmd.usage = options.usage
+        self.__maincmd.description = options.description
+        self.__maincmd.epilog = options.epilog
+        self.__maincmd.version = options.version
+        self.__error_handler = options.errorhandler
+        self.__help_handler = options.helphandler
         self.__output_mode = []
         self.__ended = 0
         self.__load_command_map = {
@@ -936,7 +971,7 @@ class ExtArgsParse(_LoggerObject):
 
     def load_command_line(self,d):
         if self.__ended != 0:
-            raise Exception('you have call end_options or parse_command_line before call load_command_line_string or load_command_line')
+            raise Exception('you have call parse_command_line before call load_command_line_string or load_command_line')
         if not isinstance(d,dict):
             raise Exception('input parameter(%s) not dict'%(d))
         self.__load_command_line_inner('',d,None)
@@ -954,6 +989,8 @@ class ExtArgsParse(_LoggerObject):
         return
 
     def __print_help(self,cmdparser=None):
+        if self.__help_handler is not None and self.__help_handler == 'nohelp':
+            return 'no help information'
         curcmd = self.__maincmd
         cmdpaths = []
         if cmdparser is not  None:
@@ -1107,16 +1144,35 @@ class ExtArgsParse(_LoggerObject):
         args = self.__set_environ_value_inner(args,'',self.__maincmd)
         return args
 
-    def __set_command_line_self_args(self,paths=None):
-        if self.__ended != 0:
-            return
+    def __check_varname_inner(self,paths=None):
         parentpaths = [self.__maincmd]
         if paths is not None:
             parentpaths = paths
         for chld in parentpaths[-1].subcommands:
             curpaths = parentpaths
             curpaths.append(chld)
-            self.__set_command_line_self_args(curpaths)
+            self.__check_varname_inner(curpaths)
+            curpaths.pop()
+
+        for opt in parentpaths[-1].cmdopts:
+            if opt.isflag:
+                if opt.type == 'help' or opt.type == 'args':
+                    continue
+                if opt.varname in self.__varnames:
+                    msg = '%s is already in the check list'%(opt.varname)
+                    self.error_msg(msg)
+                self.__varnames.append(opt.varname)
+                self.__varcmds.append(parentpaths[-1])
+        return
+
+    def __set_command_line_self_args_inner(self,paths=None):
+        parentpaths = [self.__maincmd]
+        if paths is not None:
+            parentpaths = paths
+        for chld in parentpaths[-1].subcommands:
+            curpaths = parentpaths
+            curpaths.append(chld)
+            self.__set_command_line_self_args_inner(curpaths)
             curpaths.pop()
         setted = False
         for opt in parentpaths[-1].cmdopts:
@@ -1132,6 +1188,19 @@ class ExtArgsParse(_LoggerObject):
             prefix = cmdname.replace('.','_')
             curkey = keyparse.ExtKeyParse('','$','*',True)
             self.__load_command_line_args('',curkey,parentpaths)
+        return
+
+
+    def __set_command_line_self_args(self,paths=None):
+        if self.__ended != 0:
+            return
+        self.__set_command_line_self_args_inner(paths)
+        self.__varnames = []
+        self.__varcmds = []
+        self.__check_varname_inner()
+        self.__varcmds = []
+        self.__varnames = []
+        self.__ended = 1
         return
 
     def __parse_sub_command_json_set(self,args):
@@ -1285,11 +1354,6 @@ class ExtArgsParse(_LoggerObject):
         return s
 
 
-    def end_options(self):
-        self.__set_command_line_self_args()
-        self.__ended = 1
-        return
-
 
     def parse_command_line(self,params=None,Context=None,mode=None):
         # we input the self command line args by default
@@ -1300,7 +1364,6 @@ class ExtArgsParse(_LoggerObject):
         args = NameSpace()
         try:
             self.__set_command_line_self_args()
-            self.__ended = 1
             if params is None:
                 params = sys.argv[1:]
             args = self.parse_args(params)
@@ -1340,8 +1403,7 @@ class ExtArgsParse(_LoggerObject):
 
 
     def get_subcommands(self,cmdname=None):
-        if self.__ended == 0:
-            raise Exception('should call parse_command_line or end_options before')
+        self.__set_command_line_self_args()
         return self.__get_subcommands(cmdname)
 
     def __get_cmdopts(self,cmdname,cmdpaths=None):
@@ -1360,98 +1422,19 @@ class ExtArgsParse(_LoggerObject):
         return None
 
     def get_cmdopts(self,cmdname=None):
-        if self.__ended == 0:
-            raise Exception('should call parse_command_line or end_options before')
+        self.__set_command_line_self_args()
         return self.__get_cmdopts(cmdname)
 
 
-    def __shell_eval_out_flagarray(self,args,flagarray,ismain=True,curparser=None):
-        s = ''
-        for flag in flagarray:
-            if flag.isflag and flag.flagname is not None:
-                if flag.type == 'args' or flag.type == 'list':
-                    if flag.flagname == '$' :
-                        if curparser is None and self.__subparser is not None:
-                            continue
-                        elif curparser is not None and curparser.typeclass.cmdname != args.subcommand:
-                            # we do not output args
-                            if flag.varname != 'subnargs':
-                                # to not declare this one
-                                s += 'unset %s\n'%(flag.varname)
-                                s += 'declare -A -g %s\n'%(flag.varname)
-                            continue
-                    # make the global variable access
-                    s += 'unset %s\n'%(flag.varname)
-                    s += 'declare -A -g %s\n'%(flag.varname)
-                    if flag.flagname == '$':
-                        if  not ismain:
-                            value = getattr(args,'subnargs',None)
-                        else:
-                            value = getattr(args,'args',None)
-                    else:
-                        value = getattr(args,flag.optdest,None)
-                    if value is not None:
-                        i = 0
-                        for v in value:
-                            if isinstance(v,str):
-                                s += '%s[%d]=\'%s\'\n'%(flag.varname,i,v)
-                            else:
-                                s += '%s[%d]=%s\n'%(flag.varname,i,v)
-                            i += 1
-                else:
-                    if ismain and flag.optdest == 'json' :
-                        continue
-                    elif curparser is not None:
-                        finddest = '%s_json'%(curparser.typeclass.cmdname)
-                        if flag.optdest == finddest:
-                            continue
-                    value = getattr(args,flag.optdest)
-                    if flag.type == 'bool':
-                        if value :
-                            s += '%s=1\n'%(flag.varname)
-                        else:
-                            s += '%s=0\n'%(flag.varname)
-                    else:
-                        if flag.type == 'string' :
-                            s += '%s=\'%s\'\n'%(flag.varname,value)
-                        else:
-                            s += '%s=%s\n'%(flag.varname,value)
-        return s
 
-    def shell_eval_out(self,params=None,Context=None):
-        args = self.parse_command_line(params,Context,'bash')
-        if isinstance(args,str):
-            # that is help information
-            return args
-        # now we should found out the params
-        # now to check for the type
-        # now to give the value
-        s = ''
-        s += self.__shell_eval_out_flagarray(args,self.__flags)
-        if self.__subparser is not None:            
-            curparser = self.__find_subparser_inner(args.subcommand)
-            assert(curparser is not None)
-            keycls = curparser.typeclass
-            if keycls.function is not None:
-                s += '%s=%s\n'%(keycls.function,args.subcommand)
-            else:
-                s += 'subcommand=%s\n'%(args.subcommand)
-            for curparser in self.__cmdparsers:
-                s += self.__shell_eval_out_flagarray(args,curparser.flags,False,curparser)
-        self.info('shell_out\n%s'%(s))
-        return s
-
-
-
-
-def release_args_function(args,context):
+def debug_args_function(args,context):
     if hasattr(args,'subcommand'):
         context.has_called_args = args.subcommand
     else:
         context.has_called_args = None
     return
 
-class release_extargs_test_case(unittest.TestCase):
+class debug_extargs_test_case(unittest.TestCase):
     def setUp(self):
         keyname = '_%s__logger'%(self.__class__.__name__)
         if getattr(self,keyname,None) is None:
@@ -1606,7 +1589,7 @@ class release_extargs_test_case(unittest.TestCase):
         {
             "verbose|v" : "+",
             "port|p" : 3000,
-            "dep<%s.release_args_function>" : {
+            "dep<%s.debug_args_function>" : {
                 "list|l" : [],
                 "string|s" : "s_var",
                 "$" : "+"
@@ -1768,7 +1751,9 @@ class release_extargs_test_case(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
-            parser = ExtArgsParse(errorhandler='raise')
+            options = ExtArgsOptions()
+            options.errorhandler = 'raise'
+            parser = ExtArgsParse(options)
             parser.load_command_line_string(commandline)
             args = parser.parse_command_line(['-vvvv','-p','9000','dep','--dep-json',depjsonfile,'--dep-string','ee','ww'])
             self.assertEqual(args.verbose,4)
@@ -1808,7 +1793,9 @@ class release_extargs_test_case(unittest.TestCase):
             with open(depjsonfile,'w+') as f:
                 f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
-            parser = ExtArgsParse(errorhandler='raise')
+            options = ExtArgsOptions()
+            options.errorhandler = 'raise'
+            parser = ExtArgsParse(options)
             parser.load_command_line_string(commandline)
             os.environ['DEP_JSON'] = depjsonfile
             args = parser.parse_command_line(['-vvvv','-p','9000','dep','--dep-string','ee','ww'])
@@ -2249,7 +2236,6 @@ class release_extargs_test_case(unittest.TestCase):
         '''
         parser = ExtArgsParse()
         parser.load_command_line_string(commandline)
-        parser.end_options()
         self.assertEqual(parser.get_subcommands(),[])
         self.assertEqual(parser.get_subcommands('nocommand'),None)
         opts = parser.get_cmdopts()
@@ -2288,7 +2274,6 @@ class release_extargs_test_case(unittest.TestCase):
         '''
         parser = ExtArgsParse()
         parser.load_command_line_string(commandline)
-        parser.end_options()
         cmds = parser.get_subcommands()
         self.assertEqual(len(cmds),2)
         cmd = self.__assert_get_subcommand(cmds,'dep')
@@ -2527,9 +2512,10 @@ class release_extargs_test_case(unittest.TestCase):
             }
         }
         '''
-        parser = ExtArgsParse(prog='cmd1')
+        options = ExtArgsOptions()
+        options.prog = 'cmd1'
+        parser = ExtArgsParse(options)
         parser.load_command_line_string(commandline)
-        parser.end_options()
         sio = StringIO.StringIO()
         parser.print_help(sio)
         #self.info('\n%s'%(sio.getvalue()))
@@ -2590,7 +2576,6 @@ class release_extargs_test_case(unittest.TestCase):
         '''
         parser = ExtArgsParse()
         parser.load_command_line_string(commandline)
-        parser.end_options()
         opts = parser.get_cmdopts('dep')
         attr= None
         for opt in opts:
@@ -2604,15 +2589,100 @@ class release_extargs_test_case(unittest.TestCase):
         self.assertTrue(attr.optfunc,'list_opt_func')
         return
 
+    def test_A028(self):
+        commandline= '''
+        {
+            "verbose<VAR1>|v" : "+",
+            "+http" : {
+                "url|u<VAR1>" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l!attr=cc;optfunc=list_opt_func!" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        ok = 0
+        try:
+            options = ExtArgsOptions()
+            options.errorhandler = 'raise'
+            parser = ExtKeyParse(options)
+            parser.load_command_line_string(commandline)
+            args = parser.parse_command_line(['dep','cc'])
+        except:
+            ok = 1
+        self.assertEqual(ok,1)
+        return
+
+    def test_A029(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l!attr=cc;optfunc=list_opt_func!" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.helphandler = 'nohelp'
+        parser = ExtArgsParse(options)
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        self.assertEqual(sio.getvalue(),'no help information')
+        return
 
 
-
-def release_main():
+##importdebugstart
+def debug_main():
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
         os.environ['EXTARGSPARSE_LOGLEVEL'] = '4'
     unittest.main()
 
 if __name__ == '__main__':
-    release_main()  
-
-
+    debug_main()  
+##importdebugend

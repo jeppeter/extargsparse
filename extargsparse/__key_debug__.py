@@ -1,52 +1,62 @@
 #!/usr/bin/python
 
+##extractstart 
 import os
 import sys
 import logging
 import re
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-##release not use modules
+##importdebugstart not use modules
 import unittest
+##importdebugend
 
+##extractend 
 
 class KeyAttr(object):
 	def __init__(self,attr):
 		self.__obj = dict()
 		self.__splitchar = ';'
 		self.__attr = ''
-		if attr is not None and len(attr) > 0:
-			self.__attr = attr
-			if attr.startswith('split=') and len(attr) >= 7:
-				c = attr[6]
-				if c == '.':
-					self.__splitchar='\.'
-				elif c == '\\':
-					self.__splitchar= '\\'
-				elif c == '\/':
-					self.__splitchar= '\/'
-				elif c == ':':
-					self.__splitchar= ':'
-				elif c == '@':
-					self.__splitchar= '@'
-				elif c == '+':
-					self.__splitchar = '\+'
-				else:
-					raise Exception('can not accept (%s) as split char'%(c))
-			sarr = re.split(self.__splitchar,attr)
-			for c in sarr:				
-				if c.startswith('split=') or len(c) == 0:
-					# because this is the new
-					continue
-				key,val = re.split('=',c,2)
-				if val is not None:
-					self.__obj[key] = val
-				else:
-					self.__obj[key] = True
+		if attr is not None:
+			if isinstance(attr,str) or (sys.version== '2' and isinstance(attr,unicode)):
+				if attr.startswith('split=') and len(attr) >= 7:
+					c = attr[6]
+					if c == '.':
+						self.__splitchar='\.'
+					elif c == '\\':
+						self.__splitchar= '\\'
+					elif c == '\/':
+						self.__splitchar= '\/'
+					elif c == ':':
+						self.__splitchar= ':'
+					elif c == '@':
+						self.__splitchar= '@'
+					elif c == '+':
+						self.__splitchar = '\+'
+					else:
+						raise Exception('can not accept (%s) as split char'%(c))
+				sarr = re.split(self.__splitchar,attr)
+				for c in sarr:				
+					if c.startswith('split=') or len(c) == 0:
+						# because this is the new
+						continue
+					key,val = re.split('=',c,2)
+					if val is not None:
+						self.__obj[key] = val
+					else:
+						self.__obj[key] = True
+			elif isinstance(attr,dict):
+				for k in attr.keys():
+					self.__obj[k] = attr[k]
 		return
 
 	def __str__(self):
-		return self.__attr
+		s = '{'
+		for k in self.__obj.keys():
+			s += '%s=%s;'%(k,self.__obj[k])
+		s += '}'
+		return s
 
 
 	def __getattr__(self,name):
@@ -292,7 +302,10 @@ class ExtKeyParse(object):
 					self.__value = value[k]
 					self.__type = str(TypeClass(value[k]))
 				else:
-					self.__dict__[innerkey] = value[k]					
+					self.__dict__[innerkey] = value[k]
+			elif k == 'attr':
+				if self.__attr is None:
+					self.__attr = KeyAttr(value[k])
 		if len(self.__prefix) == 0  and len(prefix) > 0:
 			self.__prefix = prefix
 		return
@@ -590,7 +603,7 @@ class ExtKeyParse(object):
 
 
 
-class release_key_test_case(unittest.TestCase):
+class debug_key_test_case(unittest.TestCase):
 	def __opt_fail_check(self,flags):
 		ok = False
 		try:
@@ -1199,11 +1212,27 @@ class release_key_test_case(unittest.TestCase):
 		self.assertEqual(flag3.longopt,'--prefix-json')
 		return
 
+	def test_A041(self):
+		flag1 = ExtKeyParse('prefix','$json',{"nargs":1,"attr":{"func":"args_opt_func","wait": "cc"}},False)
+		self.assertEqual(flag1.prefix,'prefix')
+		self.assertEqual(flag1.isflag,True)
+		self.assertEqual(flag1.attr.func,'args_opt_func')
+		self.assertEqual(flag1.attr.wait,'cc')
+		self.assertEqual(flag1.flagname,'json')
+		self.assertEqual(flag1.shortflag,None)
+		self.assertEqual(flag1.longopt,'--prefix-json')
+		self.assertEqual(flag1.shortopt,None)
+		self.assertEqual(flag1.optdest,'prefix_json')
+		self.assertEqual(flag1.varname,'prefix_json')
+		return
 
-def release_main():
+
+##importdebugstart
+def debug_main():
 	if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
 		logging.basicConfig(level=logging.INFO,format="%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s")	
 	unittest.main()
 
 if __name__ == '__main__':
-	release_main()
+	debug_main()
+##importdebugend
