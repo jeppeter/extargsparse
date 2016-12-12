@@ -1,6 +1,9 @@
 # extargsparse 
 > python command package for json string set
 
+### Release History
+> Nov 12th 2016  Release 0.5.0    it remove dependent module for argparse and make all subcommand and attribute for options
+
 ### simple example
 ```python
 import extargsparse
