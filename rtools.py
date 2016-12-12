@@ -94,29 +94,26 @@ def release_copy_own(tempf,tofile=None):
     if tofile is None:
         m = importlib.import_module('__main__')
         tofile = os.path.abspath(m.__file__)
+    touchfile = os.path.join(os.path.dirname(tofile),'%s.touched'%(os.path.basename(tofile)))
     if platform.uname()[0].lower() == 'windows':
         tempd='%s'%(get_tempd())
         fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         os.close(fd)
         cmd += '@echo off\n'
         cmd += 'timeout /t 1\n'
-        cmd += 'copy /Y %s %s\n'%(tempf,tofile)
-        cmd += 'del %s\n'%(tempf)
-        cmd += 'del %s\n'%(bashfile)
+        cmd += 'copy /Y %s %s  && echo "" >%s && del %s && del %s\n'%(tempf,tofile,touchfile,tempf,bashfile)
         runcmd = '%s'%(os.path.abspath(bashfile))
     elif platform.uname()[0].lower() == 'linux' or platform.uname()[0].lower() == 'darwin':
         tempd = '%s'%(get_tempd())
         fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         cmd += 'sleep 1\n'
-        cmd += 'cp -f %s %s\n'%(tempf,tofile)
-        cmd += 'rm -f %s\n'%(tempf)
-        cmd += 'rm -f %s\n'%(bashfile)
+        cmd += 'cp -f %s %s && echo "" > %s && rm -f %s %s\n'%(tempf,tofile,touchfile,tempf,bashfile)
         runcmd = 'bash %s'%(os.path.abspath(bashfile))        
     else:
         raise Exception('not supported os %s'%(platform.uname()))
     bashfile = os.path.abspath(bashfile)
     with open(bashfile,'w+') as f:
-        logging.info('cmd %s'%(cmd))
+        #logging.info('cmd %s'%(cmd))
         f.write(cmd)
     release_runcmd(runcmd)
     return
@@ -208,7 +205,7 @@ class release_filter(release_excludes):
         return
 
     def add_replacer(self,origpat,destpat):
-        logging.info('origpat [%s] destpat [%s]'%(origpat,destpat))
+        #logging.info('origpat [%s] destpat [%s]'%(origpat,destpat))
         self.__replace[origpat] = destpat
         return
 
@@ -287,7 +284,7 @@ class release_filter(release_excludes):
         if file.endswith('.pyc'):
             file = re.sub('.pyc$','.py',file)
         slines = []
-        with open(file,'r+') as fin:
+        with open(file,'r') as fin:
             for l in fin:
                 l = l.rstrip('\r\n')
                 slines.append(l)
@@ -365,7 +362,7 @@ def release_write_tempfile(s):
 
 def release_file(modname='__main__',tofile=None,excludes=[],macros=[],cmdchanges=[],repls=dict(),checkcall=None,ctx=None):
     m = importlib.import_module(modname)
-    logging.info('repls keys %s'%(repls.keys()))
+    #logging.info('repls keys %s'%(repls.keys()))
     s = release_get_output(m,excludes,macros,cmdchanges,repls,checkcall,ctx)
     # now we should get the file
     writetemp = release_write_tempfile(s)

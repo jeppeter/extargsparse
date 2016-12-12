@@ -2681,7 +2681,7 @@ class debug_extargs_test_case(unittest.TestCase):
 
 def debug_release():
     if '-v' in sys.argv[1:]:
-        sys.stderr.write('will make verbose\n')
+        #sys.stderr.write('will make verbose\n')
         loglvl =  logging.DEBUG
         logging.basicConfig(level=loglvl,format='%(asctime)s:%(filename)s:%(funcName)s:%(lineno)d\t%(message)s')
     tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__lib__.py'))
@@ -2692,7 +2692,7 @@ def debug_release():
                 break
     repls = dict()
     repls[r'__key_debug__'] = r'__key__'
-    logging.info('repls %s'%(repls.keys()))
+    #logging.info('repls %s'%(repls.keys()))
     rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
     return
 
