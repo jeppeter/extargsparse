@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+> Nov 12th 2016 Release 0.5.2 it fixup bug in release mode of __key_debug__.py
 > Nov 12th 2016  Release 0.5.0    it remove dependent module for argparse and make all subcommand and attribute for options
 
 ### simple example
