@@ -195,6 +195,7 @@ class release_filter(release_excludes):
         return
 
     def add_replacer(self,origpat,destpat):
+        logging.info('origpat [%s] destpat [%s]'%(origpat,destpat))
         self.__replace[origpat] = destpat
         return
 
@@ -351,6 +352,7 @@ def release_write_tempfile(s):
 
 def release_file(modname='__main__',tofile=None,excludes=[],macros=[],cmdchanges=[],repls=dict(),checkcall=None,ctx=None):
     m = importlib.import_module(modname)
+    logging.info('repls keys %s'%(repls.keys()))
     s = release_get_output(m,excludes,macros,cmdchanges,repls,checkcall,ctx)
     # now we should get the file
     writetemp = release_write_tempfile(s)

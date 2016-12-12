@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 ##importdebugstart not use modules
 import unittest
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
 import rtools
 ##importdebugend
 
@@ -1232,8 +1232,10 @@ class debug_key_test_case(unittest.TestCase):
 ##importdebugstart
 def debug_release():
     tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__key__.py'))
+    if len(sys.argv) > 2:
+        tofile = sys.argv[2]
     repls = dict()
-    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],repls)
+    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
     return
 
 def debug_main():
