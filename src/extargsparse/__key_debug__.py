@@ -1231,11 +1231,17 @@ class debug_key_test_case(unittest.TestCase):
 
 ##importdebugstart
 def debug_release():
-    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__key__.py'))
+    if '-v' in sys.argv[1:]:
+        sys.stderr.write('will make verbose\n')
+        loglvl =  logging.DEBUG
+        logging.basicConfig(level=loglvl,format='%(asctime)s:%(filename)s:%(funcName)s:%(lineno)d\t%(message)s')
+    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__lib__.py'))
     if len(sys.argv) > 2:
-        tofile = sys.argv[2]
-    repls = dict()
-    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
+        for k in sys.argv[1:]:
+            if not k.startswith('-'):
+                tofile = k
+                break
+    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']])
     return
 
 def debug_main():

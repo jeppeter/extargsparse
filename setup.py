@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='extargsparse',
-	version='0.5.0',
+	version='0.5.2',
 	description='extension class for argparse with json configuration',
 	url='http://github.com/jeppeter/extargsparse',
 	author='jeppeter Wang',

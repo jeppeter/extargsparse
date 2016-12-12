@@ -74,6 +74,19 @@ def release_runcmd(cmd):
     p = subprocess.Popen(cmd,shell=True)
     return p
 
+def get_tempd():
+    if platform.uname()[0].lower() == 'windows':
+        return os.environ['TEMP']
+    elif platform.uname()[0].lower() == 'linux' or platform.uname()[0].lower() == 'darwin':
+        if 'TEMP' in os.environ.keys():
+            return os.environ['TEMP']
+        elif 'TMP' in os.environ.keys():
+            return os.environ['TMP']
+        else:
+            return '/tmp'
+    else:
+        raise Exception('not supported os %s'%(platform.uname()[0]))
+    return '/tmp'
 
 def release_copy_own(tempf,tofile=None):
     cmd =''
@@ -82,7 +95,7 @@ def release_copy_own(tempf,tofile=None):
         m = importlib.import_module('__main__')
         tofile = os.path.abspath(m.__file__)
     if platform.uname()[0].lower() == 'windows':
-        tempd='%s'%(os.environ['TEMP'])
+        tempd='%s'%(get_tempd())
         fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         os.close(fd)
         cmd += '@echo off\n'
@@ -92,18 +105,18 @@ def release_copy_own(tempf,tofile=None):
         cmd += 'del %s\n'%(bashfile)
         runcmd = '%s'%(os.path.abspath(bashfile))
     elif platform.uname()[0].lower() == 'linux' or platform.uname()[0].lower() == 'darwin':
-        tempd = '%s'%(os.environ['TEMP'])
+        tempd = '%s'%(get_tempd())
         fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         cmd += 'sleep 1\n'
         cmd += 'cp -f %s %s\n'%(tempf,tofile)
         cmd += 'rm -f %s\n'%(tempf)
         cmd += 'rm -f %s\n'%(bashfile)
-        runcmd = 'bash %s'%(os.path.abspath(bashfile))
+        runcmd = 'bash %s'%(os.path.abspath(bashfile))        
     else:
         raise Exception('not supported os %s'%(platform.uname()))
     bashfile = os.path.abspath(bashfile)
-    print('bashfile %s'%(bashfile))
     with open(bashfile,'w+') as f:
+        logging.info('cmd %s'%(cmd))
         f.write(cmd)
     release_runcmd(runcmd)
     return
@@ -342,7 +355,7 @@ def release_get_output(mod,excludes=[],macros=[],cmdchanges=[],repls=dict(),chec
     return flt.output_string(mod,shebangomit)
 
 def release_write_tempfile(s):
-    tempd = os.environ['TEMP']
+    tempd = get_tempd()
     fd ,writetemp = tempfile.mkstemp(suffix='.py',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
     os.close(fd)
     with open(writetemp,'w+') as fout:
