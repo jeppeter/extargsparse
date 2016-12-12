@@ -1,2 +1,2 @@
 
-python3 format_template.py  -i shellout.py.tmpl -P "%EXTARGSPARSE_STRIP_CODE%" -E __cached__ -E __file__ -E __name__ -E call_args_function -E __package__ -E UnitTestCase -E main -E ExtArgsTestCase -vvvv -o base.py extargsparse.__key__ extargsparse.__lib__
+python3 format_template.py -i shellout.py.tmpl -P "%EXTARGSPARSE_STRIP_CODE%" -r "keyparse\.=" -c ExtArgsParse.get_subcommands -c ExtArgsParse.get_cmdopts -E "^debug_.*" -m "[r'^##extractstart.*',r'^##extractend.*']" -m "[r'^##importdebugstart.*',r'^##importdebugend.*']" -vvvv -o shellout.py extargsparse.__key__ extargsparse.__lib__

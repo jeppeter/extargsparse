@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 ##extractstart 
 import os
@@ -17,6 +17,8 @@ else:
 ##importdebugstart release not use modules
 import unittest
 import tempfile
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
+import rtools
 ##importdebugend release not use modules
 
 ##extractend
@@ -1426,7 +1428,6 @@ class ExtArgsParse(_LoggerObject):
         return self.__get_cmdopts(cmdname)
 
 
-
 def debug_args_function(args,context):
     if hasattr(args,'subcommand'):
         context.has_called_args = args.subcommand
@@ -2676,9 +2677,19 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(sio.getvalue(),'no help information')
         return
 
-
 ##importdebugstart
+
+def debug_release():
+    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__lib__.py'))
+    repls = dict()
+    repls[r'__key_debug__'] = '__key__'
+    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],repls)
+    return
+
 def debug_main():
+    if '--release' in sys.argv[1:]:
+        debug_release()
+        return
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
         os.environ['EXTARGSPARSE_LOGLEVEL'] = '4'
     unittest.main()

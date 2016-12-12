@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 ##extractstart 
 import os
@@ -9,6 +9,8 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 ##importdebugstart not use modules
 import unittest
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
+import rtools
 ##importdebugend
 
 ##extractend 
@@ -23,7 +25,7 @@ class KeyAttr(object):
 				if attr.startswith('split=') and len(attr) >= 7:
 					c = attr[6]
 					if c == '.':
-						self.__splitchar='\.'
+						self.__splitchar= '\.'
 					elif c == '\\':
 						self.__splitchar= '\\'
 					elif c == '\/':
@@ -1228,7 +1230,16 @@ class debug_key_test_case(unittest.TestCase):
 
 
 ##importdebugstart
+def debug_release():
+    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__key__.py'))
+    repls = dict()
+    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],repls)
+    return
+
 def debug_main():
+    if '--release' in sys.argv[1:]:
+        debug_release()
+        return
 	if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
 		logging.basicConfig(level=logging.INFO,format="%(levelname)-8s [%(filename)-10s:%(funcName)-20s:%(lineno)-5s] %(message)s")	
 	unittest.main()

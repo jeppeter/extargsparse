@@ -11,13 +11,27 @@ else:
     import io as StringIO
 
 
-##release not use modules
-import unittest
-import inspect
-import subprocess
-import tempfile
-import platform
+##importdebugstart not use modules
+def _reload_rtools_path(curpath):
+    _rtools_py = os.path.join(curpath,'rtools.py')
+    if os.path.exists(_rtools_py):
+        if curpath != sys.path[0]:
+            if curpath in sys.path:
+                sys.path.remove(curpath)
+            oldpath=sys.path
+            sys.path = [curpath]
+            sys.path.extend(oldpath)
+    return
 
+_reload_rtools_path(os.path.abspath(os.path.dirname(__file__)))
+_reload_rtools_path(os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)),'..','..')))
+import extargsparse
+import rtools
+
+import rtools
+import unittest
+import tempfile
+##importdebugend not use modules
 
 %EXTARGSPARSE_STRIP_CODE%
 
@@ -112,8 +126,7 @@ def format_bash_output(args,options,params=None):
         s += 'exit 3;\n'
     return s
 
-
-class release_shellout_test_cases(unittest.TestCase):
+class debug_shellout_test_cases(unittest.TestCase):
     def setUp(self):
         keyname = '_%s__logger'%(self.__class__.__name__)
         if getattr(self,keyname,None) is None:
@@ -411,176 +424,14 @@ def cmd_change_test(args):
     unittest.main()
     return
 
-def release_runcmd(cmd):
-    p = subprocess.Popen(cmd,shell=True)
-    return p
 
-def release_copy_own(tempf):
-    cmd =''
-    runcmd = ''
-    if platform.uname()[0].lower() == 'windows':
-        tempd='%s'%(os.environ['TEMP'])
-        fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
-        os.close(fd)
-        cmd += '@echo off\n'
-        cmd += 'timeout /t 1\n'
-        cmd += 'copy /Y %s %s\n'%(tempf,os.path.abspath(__file__))
-        cmd += 'del %s\n'%(bashfile)
-        runcmd = '%s'%(os.path.abspath(bashfile))
-    elif platform.uname()[0].lower() == 'linux':
-        tempd = '%s'%(os.environ['TEMP'])
-        fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
-        cmd += 'sleep 1\n'
-        cmd += 'cp -f %s %s\n'%(tempf,os.path.abspath(__file__))
-        cmd += 'rm -f %s\n'%(bashfile)
-        runcmd = 'bash %s'%(os.path.abspath(bashfile))
-    else:
-        raise Exception('not supported os %s'%(platform.uname()))
-    bashfile = os.path.abspath(bashfile)
-    print('bashfile %s'%(bashfile))
-    with open(bashfile,'w+') as f:
-        f.write(cmd)
-    release_runcmd(runcmd)
-    return
-
-class release_excludes(_LoggerObject):
-    def __init__(self):
-        super(release_excludes,self).__init__()
-        self.__passlines = dict()
-        self.__changelines = dict()
-        return
-
-    def add_pass_lines(self,name,start,end):
-        self.__passlines[name] = [start,end]
-        return
-
-    def is_passed(self,lineno):
-        for k in self.__passlines.keys():
-            if lineno >= self.__passlines[k][0] and lineno < self.__passlines[k][1]:
-                return True
-        return False
-    def add_change_lines(self,name,start,end):
-        self.__changelines[name] = [start,end]
-        return
-
-    def is_changed(self,lineno):
-        for k in self.__changelines.keys():
-            if lineno == self.__changelines[k][0]:
-                return 2
-            elif lineno > self.__changelines[k][0] and lineno < self.__changelines[k][1]:
-                return 1
-        return 0
-
-    def get_changed(self,lineno):
-        for k in self.__changelines.keys():
-            if lineno == self.__changelines[k][0]:
-                return k
-            elif lineno > self.__changelines[k][0] and lineno < self.__changelines[k][1]:
-                return k
-        return None
-
-
-    def __str__(self):
-        s = '@'
-        if len(self.__passlines.keys()) > 0:
-            s += '<passed>:{'
-            i = 0
-            for k in self.__passlines.keys():
-                if i > 0:
-                    s += ';'
-                s += '%s:[%d,%d]'%(k,self.__passlines[k][0],self.__passlines[k][1])
-                i += 1
-            s += '}'
-        if len(self.__changelines.keys()) > 0:
-            s += '<changed>:{'
-            i = 0
-            for k in self.__changelines.keys():
-                if i > 0:
-                    s += ';'
-                s += '%s:[%d,%d]'%(k,self.__changelines[k][0],self.__changelines[k][1])
-                i += 1
-            s += '}'
-        return s
-
-
-
-def release_get_passlines(mainm,excludes=[],cmdchanges=dict()):
-    passlines = release_excludes()
-    for d in dir(mainm):
-        if d in excludes:
-            v = getattr(mainm,d)
-            if inspect.isclass(v) or inspect.isfunction(v) or \
-                inspect.ismethod(v):
-                s,l=inspect.getsourcelines(v)
-                passlines.add_pass_lines(d,l,l + len(s))
-        elif d in cmdchanges.keys():
-            v = getattr(mainm,d)
-            if inspect.isclass(v) or inspect.isfunction(v) or \
-                inspect.ismethod(v):
-                s,l=inspect.getsourcelines(v)
-                passlines.add_change_lines(d,l,l+len(s))
-    return passlines
-
-def release_write_file(mainlines,passlines,cmdchanges=dict()):
-    tempd = os.environ['TEMP']
-    fd ,writetemp = tempfile.mkstemp(suffix='.py',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
-    os.close(fd)
-    with open(writetemp,'w+') as fout:
-        i = 0
-        for l in mainlines:
-            i += 1
-            if passlines.is_passed(i) or passlines.is_changed(i) == 1:
-                continue
-            elif passlines.is_changed(i) == 2:
-                k = passlines.get_changed(i)
-                assert(k is not None)
-                assert(k in cmdchanges.keys())
-                fout.write('%s\n'%(cmdchanges[k]))
-                continue
-            fout.write('%s\n'%(l))
-    return writetemp
-            
 
 def cmd_change_release(args):
-    mainm = importlib.import_module('__main__')
-    mainlines = []
-    with open(mainm.__file__,'r+') as f:
-        for l in f:
-            l = l.rstrip('\r\n')
-            mainlines.append(l)
-    excludes = []
-    cmdchanges = dict()
-    for k in dir(mainm):
-        if k.startswith('release_'):
-            excludes.append(k)
-        elif k.startswith('cmd_change_'):
-            cmdchanges[k] = 'def %s(args):\n\traise Exception(\'%s not supported in release mode\')\n'%(k,k)
-    passlines = release_get_passlines(mainm,excludes,cmdchanges)
-    searchmodules=0
-    importstart=-1
-    importend =-1
-    i = 0
-    for l in mainlines:
-        l = l.rstrip('\r\n')
-        i += 1
-        if searchmodules == 1:
-            if not l.startswith('import '):
-                importend = i
-                searchmodules=2
-        elif searchmodules == 0:
-            if l.startswith('##release '):
-                searchmodules = 1
-                importstart=(i+1)
-    if importstart >= 0 and importend >= 0:
-        passlines.add_pass_lines('importlib_excludes',importstart,importend)
-    else:
-        logging.warn('can not find imported')
-
-    logging.info('passlines %s'%(passlines))
-    logging.info('lines %d'%(len(mainlines)))
-    writetemp = release_write_file(mainlines,passlines,cmdchanges)
-    logging.info('writetemp %s'%(writetemp))
-    release_copy_own(writetemp)
+    excludes=[r'^debug_.*']
+    macros = [[r'^##importdebugstart.*',r'^##importdebugend.*']]
+    cmdchanges=[r'cmd_change_.*']
+    repls = dict()
+    rtools.release_file('__main__',None,excludes,macros,cmdchanges,repls,None,None)
     return
 
 
