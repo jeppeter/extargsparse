@@ -62,6 +62,7 @@ def main():
 
 		os.environ['EXTARGSPARSE_JSON'] = jsonfile
 		os.environ['DEP_JSON'] = depjsonfile
+		options = extargsparse.ExtArgsOptions()
 		parser = extargsparse.ExtArgsParse()
 		parser.load_command_line_string(commandline)
 		os.environ['DEP_STRING'] = depstrval
@@ -69,6 +70,14 @@ def main():
 		os.environ['HTTP_VISUAL_MODE']=httpvmstr
 		
 		args = parser.parse_command_line(['-p','9000','dep','--dep-string','ee','ww'])
+		assert( args.verbose == 3 )
+		assert( args.port == 9000 )
+		assert( args.dep_list == ['depenv1', 'depenv2'] )
+		assert( args.dep_string == 'ee')
+		assert( args.http_visual_mode )
+		assert( args.http_url == 'http://www.yahoo.com')
+		assert( args.subcommand == 'dep' )
+		assert( args.subnargs == ['ww'] )
 		print('args.verbose %d'%(args.verbose))
 		print('args.port %d'%(args.port))
 		print('args.dep_list %s'%(args.dep_list))

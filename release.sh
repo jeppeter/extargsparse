@@ -48,3 +48,12 @@ python $script_dir/src/extargsparse/__key_debug__.py --release -v $script_dir/ex
 wait_file_until "$script_dir/extargsparse/__key__.py.touched"
 python $script_dir/src/extargsparse/__init_debug__.py --release -v $script_dir/extargsparse/__init__.py
 wait_file_until "$script_dir/extargsparse/__init__.py.touched"
+
+
+python $script_dir/test/tstextargsparse/total.py
+_res=$?
+if [ $_res -ne 0 ]
+	then
+	/bin/echo "can not run ok"
+	exit $_res
+fi

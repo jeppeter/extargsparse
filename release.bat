@@ -67,5 +67,14 @@ exit /b 0
 :end
 
 
+python %script_dir%test\tstextargsparse\total.py
+set res=%errorlevel%
+if -%res%- == -0- (
+	echo "release ok"
+) else (
+	echo "not run test ok"
+	exit /b 3
+)
+
 
 echo on
