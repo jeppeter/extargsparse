@@ -37,7 +37,14 @@ wait_file_until()
 	done	
 }
 
+rm -f $script_dir/extargsparse/__lib__.py.touched 
+rm -f $script_dir/extargsparse/__init__.py.touched
+rm -f $script_dir/extargsparse/__key__.py.touched
+
+python $script_dir/make_setup.py
 python $script_dir/src/extargsparse/__lib_debug__.py --release -v $script_dir/extargsparse/__lib__.py
 wait_file_until "$script_dir/extargsparse/__lib__.py.touched"
 python $script_dir/src/extargsparse/__key_debug__.py --release -v $script_dir/extargsparse/__key__.py
 wait_file_until "$script_dir/extargsparse/__key__.py.touched"
+python $script_dir/src/extargsparse/__init_debug__.py --release -v $script_dir/extargsparse/__init__.py
+wait_file_until "$script_dir/extargsparse/__init__.py.touched"

@@ -75,9 +75,10 @@ def release_runcmd(cmd):
     return p
 
 def get_tempd():
-    if platform.uname()[0].lower() == 'windows':
+    unamever = platform.uname()[0]
+    if unamever.lower() == 'windows':
         return os.environ['TEMP']
-    elif platform.uname()[0].lower() == 'linux' or platform.uname()[0].lower() == 'darwin':
+    elif unamever.lower() == 'linux' or unamever.lower() == 'darwin' or unamever.lower().startswith('cygwin_'):
         if 'TEMP' in os.environ.keys():
             return os.environ['TEMP']
         elif 'TMP' in os.environ.keys():
@@ -91,11 +92,12 @@ def get_tempd():
 def release_copy_own(tempf,tofile=None):
     cmd =''
     runcmd = ''
+    unamever = platform.uname()[0]
     if tofile is None:
         m = importlib.import_module('__main__')
         tofile = os.path.abspath(m.__file__)
     touchfile = os.path.join(os.path.dirname(tofile),'%s.touched'%(os.path.basename(tofile)))
-    if platform.uname()[0].lower() == 'windows':
+    if unamever.lower() == 'windows':
         tempd='%s'%(get_tempd())
         fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         os.close(fd)
@@ -103,7 +105,7 @@ def release_copy_own(tempf,tofile=None):
         cmd += 'timeout /t 1\n'
         cmd += 'copy /Y %s %s  && echo "" >%s && del %s && del %s\n'%(tempf,tofile,touchfile,tempf,bashfile)
         runcmd = '%s'%(os.path.abspath(bashfile))
-    elif platform.uname()[0].lower() == 'linux' or platform.uname()[0].lower() == 'darwin':
+    elif unamever.lower() == 'linux' or unamever.lower() == 'darwin' or unamever.lower().startswith('cygwin_'):
         tempd = '%s'%(get_tempd())
         fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
         cmd += 'sleep 1\n'

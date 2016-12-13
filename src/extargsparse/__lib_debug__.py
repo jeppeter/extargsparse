@@ -202,7 +202,8 @@ class _ParserCompact(_LoggerObject):
             if keycls.function is not None:
                 self.callfunction = None
         else:
-            self.keycls = None
+            # it is main cmd
+            self.keycls = keyparse.ExtKeyParse('','main',{},False)
             self.cmdname = ""
             self.cmdopts = []
             self.cmdopts = []
@@ -1402,11 +1403,28 @@ class ExtArgsParse(_LoggerObject):
                 return self.__get_subcommands('.'.join(sarr[1:]),cmdpaths)
         return retnames
 
-
+    def __get_cmdkey(self,cmdname,cmdpaths=None):
+        if cmdpaths is None:
+            cmdpaths = [self.__maincmd]
+        retkey = None
+        if cmdname is None or len(cmdname) == 0:
+            retkey = cmdpaths[-1].keycls
+            return retkey
+        sarr = re.split('\.',cmdname)
+        for c in cmdpaths[-1].subcommands:
+            if c.cmdname == sarr[0]:
+                cmdpaths.append(c)
+                return self.__get_cmdkey('.'.join(sarr[1:]),cmdpaths)
+        return None
 
     def get_subcommands(self,cmdname=None):
         self.__set_command_line_self_args()
         return self.__get_subcommands(cmdname)
+
+    def get_cmdkey(self,cmdname=None):
+        self.__set_command_line_self_args()
+        return self.__get_cmdkey(cmdname)
+
 
     def __get_cmdopts(self,cmdname,cmdpaths=None):
         if cmdpaths is None:
@@ -2677,6 +2695,56 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(sio.getvalue(),'no help information')
         return
 
+    def test_A030(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep<dep_handler>!opt=cc!" : {
+                "list|l!attr=cc;optfunc=list_opt_func!" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep<rdep_handler>" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        flag = parser.get_cmdkey(None)
+        self.assertEqual(flag.iscmd,True)
+        self.assertEqual(flag.cmdname,'main')
+        self.assertEqual(flag.function,None)
+        flag = parser.get_cmdkey('dep')
+        self.assertEqual(flag.cmdname,'dep')
+        self.assertEqual(flag.function,'dep_handler')
+        self.assertEqual(flag.attr.opt,'cc')
+        flag = parser.get_cmdkey('rdep')
+        self.assertEqual(flag.function,'rdep_handler')
+        self.assertEqual(flag.attr,None)
+        flag = parser.get_cmdkey('nosuch')
+        self.assertEqual(flag,None)
+        return
+
 ##importdebugstart
 
 def debug_release():
@@ -2684,7 +2752,7 @@ def debug_release():
         #sys.stderr.write('will make verbose\n')
         loglvl =  logging.DEBUG
         logging.basicConfig(level=loglvl,format='%(asctime)s:%(filename)s:%(funcName)s:%(lineno)d\t%(message)s')
-    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'__lib__.py'))
+    tofile=os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..','extargsparse','__lib__.py'))
     if len(sys.argv) > 2:
         for k in sys.argv[1:]:
             if not k.startswith('-'):
