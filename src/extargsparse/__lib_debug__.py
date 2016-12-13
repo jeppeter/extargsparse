@@ -458,6 +458,7 @@ class _ParseState(_LoggerObject):
                                     raise Exception('no more for (%s)'%(curarg))
                                 self.__validx = oldidx
                                 oldidx += 1
+                            self.info('oldidx %d (len %d)'%(oldidx,len(self.__args)))
                             self.__curidx = oldidx
                             self.__curcharidx = -1
                             return opt
@@ -501,8 +502,9 @@ class _ParseState(_LoggerObject):
         value = None
         keycls = None
         if self.__ended > 0 or len(self.__args) <= self.__curidx:
-            if len(self.__args) > (self.__curidx-1):
-                value = self.__args[(self.__curidx-1):]
+            self.info('args %s __curidx %d'%(self.__args,self.__curidx))
+            if len(self.__args) > (self.__curidx):
+                value = self.__args[(self.__curidx):]
             return None,value,None
         keycls = self.__find_key_cls()
         if keycls is None:
@@ -2744,6 +2746,26 @@ class debug_extargs_test_case(unittest.TestCase):
         flag = parser.get_cmdkey('nosuch')
         self.assertEqual(flag,None)
         return
+
+    def test_A031(self):
+        inner_command='''
+        {
+            "verbose|v" : "+",
+            "catch|C## to not catch the exception ##" : true,
+            "input|i## to specify input default(stdin)##" : null,
+            "$caption## set caption ##" : "runcommand",
+            "test|t##to test mode##" : false,
+            "release|R##to release test mode##" : false,
+            "$" : "*"
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(inner_command)
+        args = parser.parse_command_line(['--test'])
+        self.assertEqual(args.test,True)
+        self.assertEqual(args.args,[])
+        return
+
 
 ##importdebugstart
 
