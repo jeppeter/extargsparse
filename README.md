@@ -2,11 +2,11 @@
 > python command package for json string set
 
 ### Release History
-** Nov 13th 2016 Release 0.5.8 fixup bug in the parse args command
-** Nov 13th 2016 Release 0.5.6 add __version__ in the extargsparse support
-** Nov 13th 2016 Release 0.5.4 add get_cmdkey method in ExtArgsParse Object
-** Nov 12th 2016 Release 0.5.2 it fixup bug in release mode of __key_debug__.py
-** Nov 12th 2016  Release 0.5.0    it remove dependent module for argparse and make all subcommand and attribute for options
+* Nov 13th 2016 Release 0.5.8 fixup bug in the parse args command
+* Nov 13th 2016 Release 0.5.6 add __version__ in the extargsparse support
+* Nov 13th 2016 Release 0.5.4 add get_cmdkey method in ExtArgsParse Object
+* Nov 12th 2016 Release 0.5.2 it fixup bug in release mode of __key_debug__.py
+* Nov 12th 2016  Release 0.5.0    it remove dependent module for argparse and make all subcommand and attribute for options
 
 
 ### simple example
