@@ -6,6 +6,7 @@ echo %script_dir%
 del /Q /F %script_dir%extargsparse\__lib__.py.touched 2>NUL
 del /Q /F %script_dir%extargsparse\__key__.py.touched 2>NUL
 del /Q /F %script_dir%extargsparse\__init__.py.touched 2>NUL
+del /Q /F %script_dir%test\release\release.py.touched 2>NUL
 
 python %script_dir%make_setup.py
 
@@ -17,6 +18,10 @@ call :check_file %script_dir%extargsparse\__lib__.py.touched
 
 python %script_dir%src\extargsparse\__key_debug__.py --release -v %script_dir%extargsparse\__key__.py
 call :check_file %script_dir%extargsparse\__key__.py.touched
+
+python %script_dir%test\release\releasetest.py release --release-output %script_dir%test\release\release.py
+call :check_file %script_dir%test\release\release.py.touched
+
 
 goto :end
 
@@ -67,7 +72,7 @@ exit /b 0
 :end
 
 
-python %script_dir%test\tstextargsparse\total.py
+python %script_dir%test\release\release.py test
 set res=%errorlevel%
 if -%res%- == -0- (
 	echo "release ok"

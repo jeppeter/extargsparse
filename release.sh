@@ -40,6 +40,7 @@ wait_file_until()
 rm -f $script_dir/extargsparse/__lib__.py.touched 
 rm -f $script_dir/extargsparse/__init__.py.touched
 rm -f $script_dir/extargsparse/__key__.py.touched
+rm -f $script_dir/test/release/release.py.touched
 
 python $script_dir/make_setup.py
 python $script_dir/src/extargsparse/__lib_debug__.py --release -v $script_dir/extargsparse/__lib__.py
@@ -49,8 +50,10 @@ wait_file_until "$script_dir/extargsparse/__key__.py.touched"
 python $script_dir/src/extargsparse/__init_debug__.py --release -v $script_dir/extargsparse/__init__.py
 wait_file_until "$script_dir/extargsparse/__init__.py.touched"
 
+python $script_dir/test/release/releasetest.py release
+wait_file_until "$script_dir/test/release/release.py.touched"
 
-python $script_dir/test/tstextargsparse/total.py
+python $script_dir/test/release/release.py test
 _res=$?
 if [ $_res -ne 0 ]
 	then

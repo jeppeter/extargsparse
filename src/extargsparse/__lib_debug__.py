@@ -17,6 +17,7 @@ else:
 ##importdebugstart release not use modules
 import unittest
 import tempfile
+import subprocess
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
 import rtools
 ##importdebugend release not use modules
@@ -549,6 +550,9 @@ class NameSpace(object):
             s += '%s=%s;'%(k,self.__obj[k])
         s += '}'
         return s
+
+    def __repr__(self):
+        return self.__str__()
 
 class ExtArgsOptions(object):
     def __init__(self):
@@ -1342,7 +1346,13 @@ class ExtArgsParse(_LoggerObject):
                     args = self.__set_args(args,cmdpaths,val)
                     self.info('args %s'%(args))
                     break
-                args = self.__call_opt_method(args,key,val,keycls)
+                elif keycls.type == 'help':
+                    # now we should give special 
+                    cmdpaths = parsestate.get_cmd_paths()
+                    helpcmdname = self.__format_cmd_from_cmd_array(cmdpaths)
+                    self.__call_opt_method(args,key,helpcmdname,keycls)
+                else:
+                    args = self.__call_opt_method(args,key,val,keycls)
                 self.info('%s'%(args))
         except Exception as e:
             self.error_msg('parse (%s) error(%s)'%(params,e))
@@ -2765,6 +2775,194 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(args.test,True)
         self.assertEqual(args.args,[])
         return
+
+    def __get_tab_line(self,fmt,tabs=0):
+        s = ' ' * tabs * 4
+        s += fmt
+        s += '\n'
+        return s
+
+    def __slash_string(self,s):
+        outs =''
+        for c in s:
+            if c == '\\':
+                outs += '\\\\'
+            else:
+                outs += c
+        return outs
+
+    def __write_out_scripts(self,options):
+        EXTARGS_RELEASE_MODE=False
+        if not EXTARGS_RELEASE_MODE:
+            curdir = os.path.dirname(os.path.abspath(__file__))
+            curfile = os.path.basename(__file__)
+            sarr = re.split('\.',curfile)
+            if len(sarr) > 1:
+                # remove last
+                sarr.pop()
+            curfilenoext = '.'.join(sarr)
+        scripts = ''
+        scripts += self.__get_tab_line('#! /usr/bin/env python',0)
+        scripts += self.__get_tab_line('import sys',0)
+        scripts += self.__get_tab_line('import os',0)
+        scripts += self.__get_tab_line('def _release_path_test(curpath,*paths):',0)
+        scripts += self.__get_tab_line('testfile = os.path.join(curpath,*paths)',1)
+        scripts += self.__get_tab_line('if os.path.exists(testfile):',1)
+        scripts += self.__get_tab_line('if curpath != sys.path[0]:',2)
+        scripts += self.__get_tab_line('if curpath in sys.path:',3)
+        scripts += self.__get_tab_line('sys.path.remove(curpath)',4)
+        scripts += self.__get_tab_line('oldpath=sys.path',3)
+        scripts += self.__get_tab_line('sys.path = [curpath]',3)
+        scripts += self.__get_tab_line('sys.path.extend(oldpath)',3)
+        scripts += self.__get_tab_line('return',1)
+        scripts += self.__get_tab_line('')
+        scripts += self.__get_tab_line('')
+        if not EXTARGS_RELEASE_MODE:
+            scripts += self.__get_tab_line('def _reload_extargs_debug_path(curpath):',0)
+            scripts += self.__get_tab_line('return _release_path_test(curpath,\'%s\')'%(curfile),1)
+            scripts += self.__get_tab_line('')
+            scripts += self.__get_tab_line('_reload_extargs_debug_path(\'%s\')'%(self.__slash_string(curdir)),0)        
+            scripts += self.__get_tab_line('')
+            scripts += self.__get_tab_line('import %s as extargsparse'%(curfilenoext),0)
+        else:
+            scripts += self.__get_tab_line('def _reload_extargs_path(curpath):',0)
+            scripts += self.__get_tab_line('return _release_path_test(curpath,\'extargsparse\',\'__init__.py\')',1)
+            curdir = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..')
+            scripts += self.__get_tab_line('_reload_extargs_path(\'%s\')'%(self.__slash_string(curdir)),0)
+            scripts += self.__get_tab_line('import extargsparse')
+        scripts += self.__get_tab_line('')
+        scripts += self.__get_tab_line('def main():',0)
+        scripts += self.__get_tab_line('commandline=\'\'',1)
+        sarr = re.split('\n',options)
+        i = 0
+        for l in sarr:
+            i += 1
+            l = l.rstrip('\r\n')
+            scripts += self.__get_tab_line('commandline += \'%s\\n\''%(l),1)
+        if not EXTARGS_RELEASE_MODE:
+            scripts += self.__get_tab_line('options = extargsparse.ExtArgsOptions()',1)
+            scripts += self.__get_tab_line('parser = extargsparse.ExtArgsParse(options)',1)
+        else:
+            scripts += self.__get_tab_line('options = ExtArgsOptions()',1)
+            scripts += self.__get_tab_line('parser = ExtArgsParse(options)',1)
+        scripts += self.__get_tab_line('parser.load_command_line_string(commandline)',1)
+        scripts += self.__get_tab_line('args = parser.parse_command_line()',1)
+        scripts += self.__get_tab_line('return',1)
+        scripts += self.__get_tab_line('')
+        scripts += self.__get_tab_line('if __name__ == \'__main__\':')
+        scripts += self.__get_tab_line('main()',1)
+        scripts += self.__get_tab_line('')
+        self.info('scripts (\n%s\n)'%(scripts))
+        fd,tempf = tempfile.mkstemp(suffix='.py',prefix='exthelp',dir=None,text=True)
+        os.close(fd)
+        with open(tempf,'w+') as fout:
+            fout.write('%s\n'%(scripts))
+        return tempf
+
+
+
+
+    def __get_cmd_output(self,cmd,output=None):
+        self.info('run (%s)'%(cmd))
+        origextargs = None
+        outputc = output
+        if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
+            origextargs = os.environ['EXTARGSPARSE_LOGLEVEL']
+            os.environ['EXTARGSPARSE_LOGLEVEL'] = '0'
+        try:
+            if outputc is None:
+                fd,outputc = tempfile.mkstemp(suffix='.py',prefix='exthelp',dir=None,text=True)
+                os.close(fd)
+            runcmd = '%s > %s'%(cmd,outputc)
+            exitcode = subprocess.call(runcmd,shell=True)
+            s = ''
+            with open(outputc,'r') as fin:
+                for l in fin:
+                    s += l
+        finally:
+            if output is None and outputc is not None:
+                os.remove(outputc)
+            outputc = None
+            if origextargs is None:
+                os.environ['EXTARGSPARSE_LOGLEVEL'] = '0'
+            else:
+                os.environ['EXTARGSPARSE_LOGLEVEL'] = origextargs
+        return exitcode,s
+
+
+    def test_A032(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "+http" : {
+                "url|u" : "http://www.google.com",
+                "visual_mode|V": false
+            },
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep<dep_handler>!opt=cc!" : {
+                "list|l!attr=cc;optfunc=list_opt_func!" : [],
+                "string|s" : "s_var",
+                "$" : "+",
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            },
+            "rdep<rdep_handler>" : {
+                "ip" : {
+                    "verbose" : "+",
+                    "list" : [],
+                    "cc" : []
+                }
+            }
+        }
+        '''
+        tempf = None
+        try:
+            tempf = self.__write_out_scripts(commandline)
+            cmd = 'python %s -h'%(tempf)
+            exitcode,output = self.__get_cmd_output(cmd)
+            self.assertEqual(exitcode,0)
+            sarr = self.__split_strings(output)
+            parser = ExtArgsParse()
+            parser.load_command_line_string(commandline)
+            opts = parser.get_cmdopts()
+            for opt in opts:
+                self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+
+
+            cmd = 'python %s dep -h'%(tempf)
+            exitcode,output = self.__get_cmd_output(cmd)
+            self.assertEqual(exitcode,0)
+            sarr = self.__split_strings(output)
+            parser = ExtArgsParse()
+            parser.load_command_line_string(commandline)
+            opts = parser.get_cmdopts('dep')
+            for opt in opts:
+                self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+
+            cmd = 'python %s rdep -h'%(tempf)
+            exitcode,output = self.__get_cmd_output(cmd)
+            self.assertEqual(exitcode,0)
+            sarr = self.__split_strings(output)
+            parser = ExtArgsParse()
+            parser.load_command_line_string(commandline)
+            opts = parser.get_cmdopts('rdep')
+            for opt in opts:
+                self.assertEqual(self.__get_opt_ok(sarr,opt),True)
+
+        finally:
+            if tempf is not None:
+                os.remove(tempf)
+            tempf = None
+        return
+
 
 
 ##importdebugstart

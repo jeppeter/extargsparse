@@ -193,6 +193,7 @@ class release_filter(release_excludes):
         self.__macrostart = []
         self.__macroend = []
         self.__replace = dict()
+        self.__replacekeys = []
         return
     def add_expats(self,pat=[],ignore=False):
         for p in pat:
@@ -209,6 +210,20 @@ class release_filter(release_excludes):
     def add_replacer(self,origpat,destpat):
         #logging.info('origpat [%s] destpat [%s]'%(origpat,destpat))
         self.__replace[origpat] = destpat
+        # we make sure longest match first
+        self.__replacekeys = []
+        keys = self.__replace.keys()
+        i = 0
+        while i < len(keys):
+            j = (i+1)
+            while j < len(keys):
+                if len(keys[j]) < len(keys[i]):
+                    tmp = keys[j]
+                    keys[j] = keys[i]
+                    keys[i] = tmp
+                j += 1
+            i += 1
+        self.__replacekeys = keys
         return
 
     def add_replacers(self,repls=dict()):
@@ -246,6 +261,7 @@ class release_filter(release_excludes):
     def __process_excludes(self,m,callback=None,ctx=None):
         for d in dir(m):
             v = getattr(m,d,None)
+            #logging.info('[%s].%s'%(m.__name__,d))
             if callback is not None:
                 callback(d,v,ctx)
             excluded = False
@@ -338,8 +354,24 @@ class release_filter(release_excludes):
                 s += '%s\n'%(self.get_changed(i))
             else:
                 chgstr = l
-                for p in self.__replace.keys():
-                    chgstr = re.sub(p,self.__replace[p],chgstr)
+                for p in self.__replacekeys:
+                    chgstr = re.sub(p,'%s'%(self.__replace[p]),chgstr)
+                #logging.info('(%s) => (%s) %s'%(l,chgstr,self.__replace.keys()))
+                s += '%s\n'%(chgstr)
+        return s
+
+    def catch_string(self,m,shebangomit=False):
+        s = ''
+        slines = self.__get_file_content(m)
+        i = 0
+        for l in slines:
+            i += 1
+            if i == 1 and l.startswith('#') and shebangomit:
+                continue
+            if self.is_passed(i):
+                chgstr = l
+                for p in self.__replacekeys:
+                    chgstr = re.sub(p,'%s'%(self.__replace[p]),chgstr)
                 s += '%s\n'%(chgstr)
         return s
 
@@ -353,6 +385,14 @@ def release_get_output(mod,excludes=[],macros=[],cmdchanges=[],repls=dict(),chec
     flt.process_module(mod,checkcall,ctx)
     return flt.output_string(mod,shebangomit)
 
+def release_get_catch(mod,includes=[],macros=[],repls=dict(),checkcall=None,ctx=None,shebangomit=False):
+    flt = release_filter()
+    flt.add_expats(includes)
+    flt.add_macros(macros)
+    flt.add_replacers(repls)
+    flt.process_module(mod,checkcall,ctx)
+    return flt.catch_string(mod,shebangomit)
+
 def release_write_tempfile(s):
     tempd = get_tempd()
     fd ,writetemp = tempfile.mkstemp(suffix='.py',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
@@ -363,6 +403,8 @@ def release_write_tempfile(s):
 
 
 def release_file(modname='__main__',tofile=None,excludes=[],macros=[],cmdchanges=[],repls=dict(),checkcall=None,ctx=None):
+    if modname is None:
+        modname = '__main__'
     m = importlib.import_module(modname)
     #logging.info('repls keys %s'%(repls.keys()))
     s = release_get_output(m,excludes,macros,cmdchanges,repls,checkcall,ctx)
