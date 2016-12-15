@@ -99,7 +99,8 @@ def make_dir_safe(dirtomake):
     try:
         os.makedirs(dirtomake)
     except OSError  as e:
-        pass
+        if not os.path.exists(dirtomake):
+            raise e
 
 def copy_file(fromfile,tofile,touchfile=None):
     tod = os.path.dirname(tofile)
@@ -118,7 +119,7 @@ def copy_file(fromfile,tofile,touchfile=None):
     return
 
 def main():
-    #time.sleep(1.0)
+    time.sleep(1.0)
     copy_file(sys.argv[1],sys.argv[2],sys.argv[3])
     sys.exit(0)
     return
