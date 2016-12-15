@@ -586,7 +586,7 @@ class ExtArgsOptions(object):
 
 
 class ExtArgsParse(_LoggerObject):
-    reserved_args = ['subcommand','subnargs','json','nargs','extargs']
+    reserved_args = ['subcommand','subnargs','json','nargs','extargs','help','args']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
 
     def __call_func_args(self,funcname,args,Context):
@@ -702,12 +702,12 @@ class ExtArgsParse(_LoggerObject):
                 sys.stdout.write('%s'%(s))
                 output = True
                 sys.exit(3)
-        if not output :
+        if self.__error_handler == '' :
             s = 'parse command error\n'
             s += '    %s'%(message)
-            sys.stderr.write('%s'%(s))
 
         if self.__error_handler== 'exit':
+            sys.stderr.write('%s'%(s))
             sys.exit(3)
         else:
             raise Exception(s)
@@ -755,6 +755,8 @@ class ExtArgsParse(_LoggerObject):
         return
 
     def __load_command_line_base(self,prefix,keycls,curparser=None):
+        if keycls.isflag and keycls.flagname != '$' and keycls.flagname in self.__class__.reserved_args:
+            self.error_msg('(%s) in reserved_args (%s)'%(keycls.flagname,self.__class__.reserved_args))
         self.__check_flag_insert_mustsucc(keycls,curparser)
         return True
 
@@ -940,6 +942,9 @@ class ExtArgsParse(_LoggerObject):
         if not isinstance( keycls.value,dict):
             msg = '(%s) value must be dict'%(keycls.origkey)
             self.error_msg(msg)
+        if keycls.iscmd and keycls.cmdname in self.__class__.reserved_args:
+            msg = 'command(%s) in reserved_args (%s)'%(keycls.cmdname,self.__class__.reserved_args)
+            self.error_msg(msg)
         parser = self.__get_subparser_inner(keycls,lastparser)
         nextparser = [self.__maincmd]
         if lastparser is not None:
@@ -957,6 +962,9 @@ class ExtArgsParse(_LoggerObject):
         return True
 
     def __load_command_prefix(self,prefix,keycls,curparser=None):
+        if keycls.prefix in self.__class__.reserved_args:
+            msg = 'prefix (%s) in reserved_args (%s)'%(keycls.prefix,self.__class__.reserved_args)
+            self.error_msg(msg)
         self.__load_command_line_inner(keycls.prefix,keycls.value,curparser)
         return True
 
@@ -970,7 +978,7 @@ class ExtArgsParse(_LoggerObject):
         for k in d.keys():
             v = d[k]
             self.info('%s , %s , %s , True'%(prefix,k,v))
-            keycls = keyparse.ExtKeyParse(prefix,k,v,False)            
+            keycls = keyparse.ExtKeyParse(prefix,k,v,False)
             valid = self.__load_command_map[keycls.type](prefix,keycls,parentpath)
             if not valid:
                 msg = 'can not add (%s)'%(k,v)
@@ -2963,6 +2971,43 @@ class debug_extargs_test_case(unittest.TestCase):
             tempf = None
         return
 
+
+    def test_A033(self):
+        test_reserved_args = ['subcommand','subnargs','json','nargs','extargs','help','args']
+        cmd1_fmt= '''
+        {
+            "%s" : true
+        }
+        '''
+        cmd2_fmt= '''
+        {
+            "+%s" : {
+                "reserve": true
+            }
+        }
+        '''
+        cmd3_fmt= '''
+        {
+            "%s" : {
+                "function" : 30
+            }
+        }
+        '''
+        cmdfmts = [cmd1_fmt,cmd2_fmt,cmd3_fmt]
+        for fmt in cmdfmts:
+            for k in test_reserved_args:
+                commandline = fmt%(k)
+                options = ExtArgsOptions()
+                options.errorhandler = 'raise'
+                parser = ExtArgsParse(options)
+                ok = 0
+                try:
+                    parser.load_command_line_string(commandline)
+                except:
+                    ok = 1
+                self.assertEqual(ok,1)
+
+        return
 
 
 ##importdebugstart

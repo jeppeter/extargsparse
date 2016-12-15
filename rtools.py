@@ -71,6 +71,7 @@ class FilterSource(object):
         return s
 
 def release_runcmd(cmd):
+    #logging.info('runcmd (%s)'%(cmd))
     p = subprocess.Popen(cmd,shell=True)
     return p
 
@@ -89,32 +90,65 @@ def get_tempd():
         raise Exception('not supported os %s'%(platform.uname()[0]))
     return '/tmp'
 
+copyfile_python_command='''
+import sys
+import time
+import os
+
+def make_dir_safe(dirtomake):
+    try:
+        os.makedirs(dirtomake)
+    except OSError  as e:
+        pass
+
+def copy_file(fromfile,tofile,touchfile=None):
+    tod = os.path.dirname(tofile)
+    make_dir_safe(tod)
+    fin = open(fromfile,'r')
+    fout = open(tofile,'w+')
+    for l in fin:
+        fout.write('%s'%(l))
+    fin.close()
+    fout.close()
+    if touchfile is not None:
+        touchd = os.path.dirname(touchfile)
+        make_dir_safe(touchd)
+        touchf = open(touchfile,'w')
+        touchf.close()
+    return
+
+def main():
+    #time.sleep(1.0)
+    copy_file(sys.argv[1],sys.argv[2],sys.argv[3])
+    sys.exit(0)
+    return
+
+if __name__ == '__main__':
+    main()
+
+'''
+
+def __get_tab_line(fmt,tabs=0):
+    s = ' ' * tabs * 4
+    s += fmt
+    s += '\n'
+    return s
+
 def release_copy_own(tempf,tofile=None):
     cmd =''
     runcmd = ''
-    unamever = platform.uname()[0]
     if tofile is None:
         m = importlib.import_module('__main__')
         tofile = os.path.abspath(m.__file__)
     touchfile = os.path.join(os.path.dirname(tofile),'%s.touched'%(os.path.basename(tofile)))
-    if unamever.lower() == 'windows':
-        tempd='%s'%(get_tempd())
-        fd ,bashfile = tempfile.mkstemp(suffix='.bat',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
-        os.close(fd)
-        cmd += '@echo off\n'
-        cmd += 'timeout /t 1\n'
-        cmd += 'copy /Y %s %s  && echo "" >%s && del %s && del %s\n'%(tempf,tofile,touchfile,tempf,bashfile)
-        runcmd = '%s'%(os.path.abspath(bashfile))
-    elif unamever.lower() == 'linux' or unamever.lower() == 'darwin' or unamever.lower().startswith('cygwin_'):
-        tempd = '%s'%(get_tempd())
-        fd,bashfile = tempfile.mkstemp(suffix='.sh',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
-        cmd += 'sleep 1\n'
-        cmd += 'cp -f %s %s && echo "" > %s && rm -f %s %s\n'%(tempf,tofile,touchfile,tempf,bashfile)
-        runcmd = 'bash %s'%(os.path.abspath(bashfile))        
-    else:
-        raise Exception('not supported os %s'%(platform.uname()))
-    bashfile = os.path.abspath(bashfile)
-    with open(bashfile,'w+') as f:
+    tempd='%s'%(get_tempd())
+    fd ,pythonfile = tempfile.mkstemp(suffix='.py',prefix=os.path.join(tempd,'copy'),dir=None,text=True)
+    os.close(fd)
+    cmd += __get_tab_line(r'#! /usr/bin/env python')
+    cmd += copyfile_python_command
+    pythonfile = os.path.abspath(pythonfile)
+    runcmd = 'python %s %s %s %s'%(pythonfile,tempf,tofile,touchfile)
+    with open(pythonfile,'w+') as f:
         #logging.info('cmd %s'%(cmd))
         f.write(cmd)
     release_runcmd(runcmd)
