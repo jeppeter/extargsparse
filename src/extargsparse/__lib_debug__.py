@@ -3035,7 +3035,7 @@ class debug_extargs_test_case(unittest.TestCase):
         try:
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
-            fd,depjson = tempfile.mkstemp(suffix='.py',prefix='exthelp',dir=None,text=True)
+            fd,depjson = tempfile.mkstemp(suffix='.json',prefix='dep',dir=None,text=True)
             os.close(fd)
             with open(depjson,'w') as fout:
                 fout.write('{"dep_string":null}')
