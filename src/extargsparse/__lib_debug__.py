@@ -526,6 +526,7 @@ class _ParseState(_LoggerObject):
 class NameSpace(object):
     def __init__(self):
         self.__obj = dict()
+        self.__access = dict()
         self.__logger = _LoggerObject()
         return
 
@@ -533,6 +534,7 @@ class NameSpace(object):
         if not key.startswith('_'):
             self.__logger.info('%s=%s'%(key,val),2)
             self.__obj[key] = val
+            self.__access[key] = True
             return
         self.__dict__[key] = val
         return
@@ -553,6 +555,11 @@ class NameSpace(object):
 
     def __repr__(self):
         return self.__str__()
+
+    def __has_accessed(self,name):
+        if name in self.__access.keys():
+            return True
+        return False
 
 class ExtArgsOptions(object):
     def __init__(self):
@@ -1033,13 +1040,20 @@ class ExtArgsParse(_LoggerObject):
         #sys.exit(0)
         return
 
+    def __get_args_accessed(self,args,optdest):
+        funcname = '_%s__has_accessed'%('NameSpace')
+        funcptr = getattr(args,funcname,None)
+        if funcptr is None :
+            raise Exception('%s not found ,internal error'%(funcname))
+        return funcptr(optdest)
+
     def __set_jsonvalue_not_defined(self,args,cmd,key,value):
         for chld in cmd.subcommands:
             args = self.__set_jsonvalue_not_defined(args,chld,key,value)
         for opt in cmd.cmdopts:
             if opt.isflag and opt.type != 'prefix' and opt.type != 'args' and opt.type != 'help':
                 if opt.optdest == key:
-                    if getattr(args,opt.optdest,None) is None:
+                    if not self.__get_args_accessed(args,opt.optdest):
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(opt.value)):
                             self.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
                         self.info('set (%s)=(%s)'%(key,value))
@@ -3006,8 +3020,39 @@ class debug_extargs_test_case(unittest.TestCase):
                 except:
                     ok = 1
                 self.assertEqual(ok,1)
-
         return
+
+    def test_A034(self):
+        commandline='''
+        {
+            "dep" : {
+                "string|S" : "stringval"
+            }
+        }
+        '''
+        depjson = None
+        ok = False
+        try:
+            parser = ExtArgsParse()
+            parser.load_command_line_string(commandline)
+            fd,depjson = tempfile.mkstemp(suffix='.py',prefix='exthelp',dir=None,text=True)
+            os.close(fd)
+            with open(depjson,'w') as fout:
+                fout.write('{"dep_string":null}')
+            args = parser.parse_command_line(['--json',depjson, 'dep'])
+            self.assertEqual(args.dep_string,None)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.subnargs,[])
+            ok = True
+        finally:
+            if ok :
+                os.remove(depjson)
+            else:
+                self.error('depjson %s error'%(depjson))
+            depjson = None
+        return
+
+
 
 
 ##importdebugstart
