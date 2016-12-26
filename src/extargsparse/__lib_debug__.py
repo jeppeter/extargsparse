@@ -709,7 +709,7 @@ class ExtArgsParse(_LoggerObject):
                 sys.stdout.write('%s'%(s))
                 output = True
                 sys.exit(3)
-        if self.__error_handler == '' :
+        if not output :
             s = 'parse command error\n'
             s += '    %s'%(message)
 
