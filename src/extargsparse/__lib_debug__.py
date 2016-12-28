@@ -653,6 +653,7 @@ class ExtArgsParse(_LoggerObject):
         setattr(args,keycls.optdest,value)
         return args
 
+
     def __jsonfile_action(self,args,keycls,value):
         return self.__string_action(args,keycls,value)
 
@@ -842,7 +843,8 @@ class ExtArgsParse(_LoggerObject):
             'count' : self.__inc_action,
             'help' : self.__help_action,
             'jsonfile' : self.__string_action,
-            'command' : self.__command_action
+            'command' : self.__command_action ,
+            'float' : self.__float_action
         }
         for p in priority:
             if p not in self.__class__.priority_args:
@@ -1084,6 +1086,8 @@ class ExtArgsParse(_LoggerObject):
         prefix = ''
         if cmdname is not None :
             prefix += cmdname
+        # replace prefix ok
+        prefix = prefix.replace('.','_')
         fp = None
         try:
             fp = open(jsonfile,'r+')
@@ -1101,6 +1105,7 @@ class ExtArgsParse(_LoggerObject):
             msg = 'can not parse (%s)'%(jsonfile)
             self.error_msg(msg)
         jsonvalue = keyparse.Utf8Encode(jsonvalue).get_val()
+        self.info('load (%s) prefix(%s) value (%s)'%(jsonfile,prefix,repr(jsonvalue)))
         return self.__load_jsonvalue(args,prefix,jsonvalue)
 
 
@@ -1530,6 +1535,21 @@ class debug_extargs_test_case(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         pass
+
+    def __write_temp_file(self,content):
+        fd , tempf = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+        os.close(fd)
+        with open(tempf,'w') as f:
+            f.write('%s'%(content))
+        self.info('tempf %s'%(tempf))
+        return tempf
+
+    def __remove_file_ok(self,filename,description,ok):
+        if filename is not None and ok:
+            os.remove(filename)
+        elif filename is not None:
+            self.error('%s %s'%(description,filename))
+        return
 
     def test_A001(self):
         loads = '''
@@ -3051,6 +3071,68 @@ class debug_extargs_test_case(unittest.TestCase):
                 self.error('depjson %s error'%(depjson))
             depjson = None
         return
+
+    def test_A035(self):
+        commandline = '''
+        {
+            "float1|f" : 3.633 ,
+            "float2" : 6422.22,
+            "float3" : 44463.23,
+            "verbose|v" : "+",
+            "dep" : {
+                "float3" : 3332.233
+            },
+            "rdep" : {
+                "ip" : {
+                    "float4" : 3377.33,
+                    "float6" : 33.22,
+                    "float7" : 0.333
+                }
+            }
+
+        }
+        '''
+        depjsonfile = None
+        rdepjsonfile = None
+        rdepipjsonfile = None
+        jsonfile = None
+        ok = False
+        try:
+            depjsonfile = self.__write_temp_file('{"float3":33.221}')
+            rdepjsonfile = self.__write_temp_file('{"ip" : { "float4" : 40.3}}')
+            jsonfile = self.__write_temp_file('{"verbose": 30,"float3": 77.1}')
+            rdepipjsonfile = self.__write_temp_file('{"float7" : 11.22,"float4" : 779.2}')
+            env = dict()
+            os.environ['EXTARGSPARSE_JSON'] = jsonfile
+            os.environ['DEP_JSON'] = depjsonfile
+            os.environ['RDEP_JSON'] = rdepjsonfile
+            os.environ['DEP_FLOAT3'] = '%s'%(33.52)
+            os.environ['RDEP_IP_FLOAT7'] = '%s'%(99.3)
+            parser = ExtArgsParse()
+            parser.load_command_line_string(commandline)
+            args = parser.parse_command_line(['-vvfvv','33.21','rdep','ip','--json',jsonfile,'--rdep-ip-json',rdepipjsonfile])
+            self.assertEqual(len(args.subnargs),0)
+            self.assertEqual(args.subcommand,'rdep.ip')
+            self.assertEqual(args.verbose,4)
+            self.assertEqual(args.float1,33.21)
+            self.assertEqual(args.dep_float3,33.52)
+            self.assertEqual(args.float2,6422.22)
+            self.assertEqual(args.float3,77.1)
+            self.assertEqual(args.rdep_ip_float4,779.2)
+            self.assertEqual(args.rdep_ip_float6,33.22)
+            self.assertEqual(args.rdep_ip_float7,11.22)
+            ok = True
+        finally:
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
+            self.__remove_file_ok(rdepjsonfile,'rdepjsonfile',ok)
+            self.__remove_file_ok(rdepipjsonfile,'rdepipjsonfile',ok)
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            depjsonfile = None
+            rdepjsonfile = None
+            rdepipjsonfile = None
+            jsonfile = None
+        return
+
 
 
 
