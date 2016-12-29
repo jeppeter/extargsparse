@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Dec 29th 2016 Release 0.7.2 to make get_subcommands and get_cmdopts with sequential order
 * Dec 28th 2016 Release 0.7.0 to fixup some bugs in parse float
 * Dec 13th 2016 Release 0.5.6 add __version__ in the extargsparse support
 * Dec 13th 2016 Release 0.5.4 add get_cmdkey method in ExtArgsParse Object

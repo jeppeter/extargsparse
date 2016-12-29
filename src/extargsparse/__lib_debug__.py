@@ -3230,6 +3230,57 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(ok,1)
         return
 
+    def test_A037(self):
+        commandline='''
+        {
+            "jsoninput|j##input json default stdin##" : null,
+            "input|i##input file to get default nothing - for stdin##" : null,
+            "output|o##output c file##" : null,
+            "verbose|v##verbose mode default(0)##" : "+",
+            "cmdpattern|c" : "%EXTARGS_CMDSTRUCT%",
+            "optpattern|O" : "%EXTARGS_STRUCT%", 
+            "structname|s" : "args_options_t",
+            "funcname|F" : "debug_extargs_output",
+            "releasename|R" : "release_extargs_output",
+            "funcpattern" : "%EXTARGS_DEBUGFUNC%",
+            "prefix|p" : "",
+            "test" : {
+                "$" : 0
+            },
+            "optstruct" : {
+                "$" : 0
+            },
+            "cmdstruct" : {
+                "$" : 0
+            },
+            "debugfunc" : {
+                "$" : 0
+            },
+            "all" : {
+                "$" : 0
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.errorhandler = 'raise'
+        parser = ExtArgsParse(options)
+        parser.load_command_line_string(commandline)
+        subcommands = parser.get_subcommands()
+        self.assertEqual(len(subcommands),5)
+        self.assertEqual(subcommands[0],'all')
+        self.assertEqual(subcommands[1],'cmdstruct')
+        self.assertEqual(subcommands[2],'debugfunc')
+        self.assertEqual(subcommands[3],'optstruct')
+        self.assertEqual(subcommands[4],'test')
+        cmdopts = parser.get_cmdopts()
+        self.assertEqual(len(cmdopts),14)
+        self.assertEqual(cmdopts[0].flagname,'$')
+        self.assertEqual(cmdopts[1].longopt,'--cmdpattern')
+        self.assertEqual(cmdopts[2].optdest,'funcname')
+        self.assertEqual(cmdopts[3].varname,'funcpattern')
+        self.assertEqual(cmdopts[4].type,'help')
+        return
+
 
 
 
