@@ -247,7 +247,9 @@ class release_filter(release_excludes):
         self.__replace[origpat] = destpat
         # we make sure longest match first
         self.__replacekeys = []
-        keys = self.__replace.keys()
+        keys = []
+        for k in self.__replace.keys():
+            keys.append(k)
         i = 0
         while i < len(keys):
             j = (i+1)

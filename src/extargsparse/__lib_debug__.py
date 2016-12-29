@@ -18,6 +18,7 @@ else:
 import unittest
 import tempfile
 import subprocess
+import platform
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
 import rtools
 ##importdebugend release not use modules
@@ -82,7 +83,7 @@ class _LoggerObject(object):
             s += '%s'%(arr)
         return s
 
-    def __format_call_msg(self,msg,callstack):
+    def format_call_msg(self,msg,callstack):
         inmsg = ''  
         if callstack is not None:
             try:
@@ -96,31 +97,31 @@ class _LoggerObject(object):
     def info(self,msg,callstack=1):
         inmsg = msg
         if callstack is not None:
-            inmsg = self.__format_call_msg(msg,(callstack + 1))
+            inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.info('%s'%(inmsg))
 
     def error(self,msg,callstack=1):
         inmsg = msg
         if callstack is not None:
-            inmsg = self.__format_call_msg(msg,(callstack + 1))
+            inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.error('%s'%(inmsg))
 
     def warn(self,msg,callstack=1):
         inmsg = msg
         if callstack is not None:
-            inmsg = self.__format_call_msg(msg,(callstack + 1))
+            inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.warn('%s'%(inmsg))
 
     def debug(self,msg,callstack=1):
         inmsg = msg
         if callstack is not None:
-            inmsg = self.__format_call_msg(msg,(callstack + 1))
+            inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.debug('%s'%(inmsg))
 
     def fatal(self,msg,callstack=1):
         inmsg = msg
         if callstack is not None:
-            inmsg = self.__format_call_msg(msg,(callstack + 1))
+            inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.fatal('%s'%(inmsg))
 
 
@@ -294,13 +295,21 @@ class _ParserCompact(_LoggerObject):
                 s += ' [SUBCOMMANDS]'
             for args in self.cmdopts:
                 if args.flagname == '$':
-                    if args.nargs == '+' or args.nargs > 1:
-                        s += ' args...'
-                    elif args.nargs == '*':
-                        s += ' [args...]'
-                    elif args.nargs == '?' or args.nargs == 1:
-                        s += ' arg'
-                    break
+                    if isinstance(args.nargs,str):
+                        if args.nargs == '+' :
+                            s += ' args...'
+                        elif args.nargs == '*':
+                            s += ' [args...]'
+                        elif args.nargs == '?':
+                            s += ' arg'
+                    else:
+                        if args.nargs > 1:
+                            s += ' args...'
+                        elif args.nargs == 1:
+                            s += ' arg'
+                        else:
+                            s += ''
+                        break
             s += '\n'
         if self.description is not None:
             s += '%s\n'%(self.description)        
@@ -712,7 +721,7 @@ class ExtArgsParse(_LoggerObject):
                 sys.exit(3)
         if not output :
             s = 'parse command error\n'
-            s += '    %s'%(message)
+            s += '    %s'%(self.format_call_msg(msg,1))
 
         if self.__error_handler== 'exit':
             sys.stderr.write('%s'%(s))
@@ -3132,6 +3141,68 @@ class debug_extargs_test_case(unittest.TestCase):
             rdepipjsonfile = None
             jsonfile = None
         return
+
+    def test_A036(self):
+        commandline='''
+        {
+            "jsoninput|j##input json default stdin##" : null,
+            "input|i##input file to get default nothing - for stdin##" : null,
+            "output|o##output c file##" : null,
+            "verbose|v##verbose mode default(0)##" : "+",
+            "cmdpattern|c" : "%EXTARGS_CMDSTRUCT%",
+            "optpattern|O" : "%EXTARGS_STRUCT%", 
+            "structname|s" : "args_options_t",
+            "funcname|F" : "debug_extargs_output",
+            "releasename|R" : "release_extargs_output",
+            "funcpattern" : "%EXTARGS_DEBUGFUNC%",
+            "prefix|p" : "",
+            "test" : {
+                "$" : 0
+            },
+            "optstruct" : {
+                "$" : 0
+            },
+            "cmdstruct" : {
+                "$" : 0
+            },
+            "debugfunc" : {
+                "$" : 0
+            },
+            "all" : {
+                "$" : 0
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.errorhandler = 'raise'
+        parser = ExtArgsParse(options)
+        parser.load_command_line_string(commandline)
+        ok = 0
+        oldstdout = sys.stdout
+        oldstderr = sys.stderr
+        uname0 = platform.uname()[0].lower()
+        try:
+            if uname0 == 'linux' or uname0.startswith('cygwin'):
+                sys.stdout = open('/dev/null','w')
+                sys.stderr = open('/dev/null','w')
+            elif uname0 == 'windows':
+                sys.stdout = open('NUL','w')
+                sys.stderr = open('NUL','w')
+            else:
+                raise Exception('can not find platform %s'%(uname0))
+            args =parser.parse_command_line(['--help'])
+        except SystemExit:
+            ok = 1
+        finally:
+            if sys.stdout != oldstdout:
+                sys.stdout.close()
+            sys.stdout = oldstdout
+            if sys.stderr != oldstderr:
+                sys.stderr.close()
+            sys.stderr = oldstderr
+        self.assertEqual(ok,1)
+        return
+
 
 
 

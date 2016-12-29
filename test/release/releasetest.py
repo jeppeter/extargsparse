@@ -35,6 +35,7 @@ import importlib
 import rtools
 import tempfile
 import subprocess
+import platform
 
 if sys.version[0] == '2':
 	import StringIO
