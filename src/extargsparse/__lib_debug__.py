@@ -1442,8 +1442,8 @@ class ExtArgsParse(_LoggerObject):
         if cmdname is None or len(cmdname) == 0:
             retnames = []
             for c in cmdpaths[-1].subcommands:
-                retnames.append(c.cmdname)
-            return retnames
+                retnames.append(c.cmdname)            
+            return sorted(retnames)
         sarr = re.split('\.',cmdname)
         for c in cmdpaths[-1].subcommands:
             if c.cmdname == sarr[0]:
@@ -1473,6 +1473,32 @@ class ExtArgsParse(_LoggerObject):
         self.__set_command_line_self_args()
         return self.__get_cmdkey(cmdname)
 
+    def __sort_cmdopts(self,retopts=None):
+        if retopts is not None:
+            normalopts = []
+            argsopt = None
+            for opt in retopts:
+                if opt.type == 'args':
+                    assert(argsopt is None)
+                    argsopt = opt
+                    continue
+                normalopts.append(opt)
+            i = 0
+            while i < len(normalopts):
+                j = i + 1
+                while j < len(normalopts):
+                    if normalopts[j].optdest <  normalopts[i].optdest:
+                        tmpopt = normalopts[j]
+                        normalopts[j] = normalopts[i]
+                        normalopts[i] = tmpopt
+                    j += 1
+                i += 1
+            retopts = []
+            if argsopt is not None:
+                retopts.append(argsopt)
+            retopts.extend(normalopts)
+        return retopts
+
 
     def __get_cmdopts(self,cmdname,cmdpaths=None):
         if cmdpaths is None:
@@ -1480,7 +1506,8 @@ class ExtArgsParse(_LoggerObject):
         retopts = None
         if cmdname is None or len(cmdname) == 0:
             retopts = cmdpaths[-1].cmdopts
-            return retopts
+            # now sorted the retopts
+            return self.__sort_cmdopts(retopts)
 
         sarr = re.split('\.',cmdname)
         for c in cmdpaths[-1].subcommands:
