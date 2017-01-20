@@ -721,7 +721,7 @@ class ExtArgsParse(_LoggerObject):
                 sys.exit(3)
         if not output :
             s = 'parse command error\n'
-            s += '    %s'%(self.format_call_msg(msg,1))
+            s += '    %s'%(self.format_call_msg(message,1))
 
         if self.__error_handler== 'exit':
             sys.stderr.write('%s'%(s))
@@ -3280,6 +3280,39 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(cmdopts[3].varname,'funcpattern')
         self.assertEqual(cmdopts[4].type,'help')
         return
+
+    def test_A038(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 0x1f1,
+            "ipxe<ipxe_handler>" : {
+                "$" : "+"
+            }
+        }
+        '''
+        ok = 0
+        parser = ExtArgsParse()
+        # to indirect the code
+        errfile = None
+        errfile = sys.stderr
+        sys.stderr = open(os.devnull,'w')
+        try:
+            parser.load_command_line_string(commandline)
+        except:
+            ok = 1
+        if errfile is not None:
+            if sys.stderr != errfile:
+                sys.stderr.close()
+                sys.stderr = errfile
+            errfile = None
+        self.assertEqual(ok,1)
+        return
+
 
 
 

@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Jan 20th 2017 Release 0.7.6 to fixup bug in error_msg when msg not found
 * Dec 29th 2016 Release 0.7.2 to make get_subcommands and get_cmdopts with sequential order
 * Dec 28th 2016 Release 0.7.0 to fixup some bugs in parse float
 * Dec 13th 2016 Release 0.5.6 add __version__ in the extargsparse support
