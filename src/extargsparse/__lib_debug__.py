@@ -1166,9 +1166,17 @@ class ExtArgsParse(_LoggerObject):
                             setattr(args,oldopt,lval)
                         except:
                             self.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
-                    elif keycls.type == 'int':
+                    elif keycls.type == 'int' or keycls.type == 'count':
                         try:
-                            lval = int(val)
+                            val = val.lower()
+                            base = 10
+                            if val.startswith('0x') :
+                                val = val[2:]
+                                base = 16
+                            elif val.startswith('x'):
+                                val = val[1:]
+                                base = 16
+                            lval = int(val,base)
                             setattr(args,oldopt,lval)
                         except:
                             self.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
@@ -3313,8 +3321,25 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(ok,1)
         return
 
-
-
+    def test_A039(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 451
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        os.environ['EXTARGS_VERBOSE'] = '4'
+        os.environ['EXTARGS_SETUPSECTSOFFSET'] = '0x612'
+        args = parser.parse_command_line([],None)
+        self.assertEqual(args.verbose,4)
+        self.assertEqual(args.setupsectsoffset,0x612)
+        return
 
 
 
