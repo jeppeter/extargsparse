@@ -15,5 +15,13 @@ rm -f $script_dir/extargsparse/__init__.py
 rm -f $script_dir/extargsparse/__key__.py
 rm -f $script_dir/test/release/release.py
 
+rm -f $script_dir/src/extargsparse/__key_debug__.pyc
+rm -f $script_dir/src/extargsparse/__lib_debug__.pyc
+
 rm -f $script_dir/setup.py
 
+rm -rf $script_dir/extargsparse
+rm -f $script_dir/rtools.pyc
+rm -rf $script_dir/__pycache__
+rm -rf $script_dir/src/extargsparse/__pycache__
+rm -rf $script_dir/extargsparse.egg-info

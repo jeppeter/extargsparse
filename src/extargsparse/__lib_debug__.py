@@ -33,13 +33,6 @@ ENV_SUB_COMMAND_JSON_SET = 50
 ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
 
-def set_attr_args(self,args,prefix):
-    if not issubclass(args.__class__,argparse.Namespace):
-        raise Exception('second args not valid argparse.Namespace subclass')
-    for p in vars(args).keys():
-        if len(prefix) == 0 or p.startswith('%s_'%(prefix)):
-            setattr(self,p,getattr(args,p))
-    return
 
 
 class _LoggerObject(object):
@@ -532,7 +525,7 @@ class _ParseState(_LoggerObject):
         return self.__cmdpaths
 
 
-class NameSpace(object):
+class NameSpaceEx(object):
     def __init__(self):
         self.__obj = dict()
         self.__access = dict()
@@ -569,6 +562,18 @@ class NameSpace(object):
         if name in self.__access.keys():
             return True
         return False
+
+    def get_keys(self):
+        return self.__obj.keys()
+
+def set_attr_args(self,args,prefix):
+    if not issubclass(args.__class__,NameSpaceEx):
+        raise Exception('args not NameSpaceEx')
+    for p in args.get_keys():
+        if len(prefix) == 0 or p.startswith('%s_'%(prefix)):
+            setattr(self,p,getattr(args,p))
+    return
+
 
 class ExtArgsOptions(object):
     def __init__(self):
@@ -1052,7 +1057,7 @@ class ExtArgsParse(_LoggerObject):
         return
 
     def __get_args_accessed(self,args,optdest):
-        funcname = '_%s__has_accessed'%('NameSpace')
+        funcname = '_%s__has_accessed'%('NameSpaceEx')
         funcptr = getattr(args,funcname,None)
         if funcptr is None :
             raise Exception('%s not found ,internal error'%(funcname))
@@ -1376,7 +1381,7 @@ class ExtArgsParse(_LoggerObject):
         if params is None:
             params = sys.argv[1:]
         parsestate = _ParseState(params,self.__maincmd)
-        args = NameSpace()
+        args = NameSpaceEx()
         try:
             while True:
                 key,val,keycls = parsestate.step_one()
@@ -1420,7 +1425,7 @@ class ExtArgsParse(_LoggerObject):
         if mode is not None:
             pushmode = True
             self.__output_mode.append(mode)
-        args = NameSpace()
+        args = NameSpaceEx()
         try:
             self.__set_command_line_self_args()
             if params is None:
@@ -1536,6 +1541,27 @@ def debug_args_function(args,context):
         context.has_called_args = None
     return
 
+class debug_tcebase(object):
+    def __init__(self):
+        return
+
+    def __setattr__(self,k,v):
+        if k.startswith('_'):
+            setattr(self,k,v)
+            return
+        self.__dict__[k]=v
+        return
+
+    def __getattr__(self,k):
+        if k.startswith('_'):
+            return getattr(self,k,None)
+        if k in self.__dict__.keys():
+            return self.__dict__[k]
+        return None
+
+
+
+
 class debug_extargs_test_case(unittest.TestCase):
     def setUp(self):
         keyname = '_%s__logger'%(self.__class__.__name__)
@@ -1551,7 +1577,7 @@ class debug_extargs_test_case(unittest.TestCase):
                 if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('RDEP_'):
                     del os.environ[k]
                     delone = True
-                    break
+                    break        
         return
 
     def info(self,msg,callstack=1):
@@ -3341,6 +3367,50 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(args.setupsectsoffset,0x612)
         return
 
+    def test_A040(self):
+        commandline='''
+        {
+            "+tce": {
+                "mirror": "http://repo.tinycorelinux.net",
+                "root": "/",
+                "tceversion": "7.x",
+                "wget": "wget",
+                "cat": "cat",
+                "rm": "rm",
+                "sudoprefix": "sudo",
+                "optional_dir": "/cde",
+                "trymode": false,
+                "platform": "x86_64",
+                "mount": "mount",
+                "umount": "umount",
+                "chroot": "chroot",
+                "chown": "chown",
+                "chmod": "chmod",
+                "mkdir": "mkdir",
+                "rollback": true,
+                "cp": "cp",
+                "jsonfile": null,
+                "perspace": 3,
+                "depmapfile": null,
+                "timeout": 10,
+                "listsfile": null,
+                "maxtries": 5
+            }
+        }        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['--tce-root','/home/'])
+        tcebase = debug_tcebase()
+        set_attr_args(tcebase,args,'tce')
+        self.assertEqual(tcebase.tce_mirror,'http://repo.tinycorelinux.net')
+        self.assertEqual(tcebase.tce_root,'/home/')
+        self.assertEqual(tcebase.tce_listsfile,None)
+        self.assertEqual(tcebase.tce_maxtries,5)
+        self.assertEqual(tcebase.tce_timeout,10)
+        return
+        
+
+
 
 
 
@@ -3369,6 +3439,8 @@ def debug_main():
         return
     if '-v' in sys.argv[1:] or '--verbose' in sys.argv[1:]:
         os.environ['EXTARGSPARSE_LOGLEVEL'] = '4'
+        loglvl =  logging.DEBUG
+        logging.basicConfig(level=loglvl,format='%(asctime)s:%(filename)s:%(funcName)s:%(lineno)d\t%(message)s')
     unittest.main()
 
 if __name__ == '__main__':

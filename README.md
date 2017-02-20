@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Feb 20th 2017 Release 0.8.0 to fixup bug in the set_attr_args functions
 * Jan 31st 2017 Release 0.7.8 to fixup bug when in the environment variable on count type
 * Jan 20th 2017 Release 0.7.6 to fixup bug in error_msg when msg not found
 * Dec 29th 2016 Release 0.7.2 to make get_subcommands and get_cmdopts with sequential order
