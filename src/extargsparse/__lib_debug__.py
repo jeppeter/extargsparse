@@ -36,12 +36,14 @@ DEFAULT_SET = 70
 
 
 class _LoggerObject(object):
-    def __init__(self):
-        self.__logger = logging.getLogger('extargsparse')
+    def __init__(self,cmdname='extargsparse'):
+        self.__logger = logging.getLogger(cmdname)
         if len(self.__logger.handlers) == 0:
             loglvl = logging.WARN
-            if 'EXTARGSPARSE_LOGLEVEL' in os.environ.keys():
-                v = os.environ['EXTARGSPARSE_LOGLEVEL']
+            lvlname = '%s_LOGLEVEL'%(cmdname)
+            lvlname = lvlname.upper()
+            if lvlname in os.environ.keys():
+                v = os.environ[lvlname]
                 vint = 0
                 try:
                     vint = int(v)
@@ -53,8 +55,10 @@ class _LoggerObject(object):
                     loglvl = logging.INFO
             handler = logging.StreamHandler()
             fmt = "%(levelname)-8s %(message)s"
-            if 'EXTARGSPARSE_LOGFMT' in os.environ.keys():
-                v = os.environ['EXTARGSPARSE_LOGFMT']
+            fmtname = '%s_LOGFMT'%(cmdname)
+            fmtname = fmtname.upper()
+            if fmtname in os.environ.keys():
+                v = os.environ[fmtname]
                 if v is not None and len(v) > 0:
                     fmt = v
             formatter = logging.Formatter(fmt)
@@ -1071,9 +1075,10 @@ class ExtArgsParse(_LoggerObject):
                 if opt.optdest == key:
                     if not self.__get_args_accessed(args,opt.optdest):
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(opt.value)):
-                            self.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(p.value))))
-                        self.info('set (%s)=(%s)'%(key,value))
-                        setattr(args,key,value)
+                            self.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(opt.value))))
+                        else:
+                            self.info('set (%s)=(%s)'%(key,value))
+                            setattr(args,key,value)
                     return args
         return args
 
@@ -3408,10 +3413,132 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(tcebase.tce_maxtries,5)
         self.assertEqual(tcebase.tce_timeout,10)
         return
-        
 
+    def test_A041(self):
+        commandline_fmt='''
+        {
+            "countryname|N" : "CN",
+            "statename|S" : "ZJ",
+            "localityname" : "HZ",
+            "organizationname|O" : ["BT"],
+            "organizationunitname" : "BT R&D",
+            "commonname|C" : "bingte.com",
+            "+ssl" : {
+                "chain" : true,
+                "dir" : "%s",
+                "bits" : 4096,
+                "md" : "sha256",
+                "utf8" : true,
+                "name" : "ipxe",
+                "days" : 3650,
+                "crl-days": 365,
+                "emailaddress" : "bt@bingte.com",
+                "aia_url" : "http://bingte.com/sec/aia",
+                "crl_url" : "http://bingte.com/sec/crl",
+                "ocsp_url" : "http://bingte.com/sec/ocsp",
+                "dns_url" : ["bingte.com"],
+                "excluded_ip" : ["0.0.0.0/0.0.0.0","0:0:0:0:0:0:0:0/0:0:0:0:0:0:0:0"],
+                "password|P" : null,
+                "copy_extensions" : "none",
+                "subca" : false,
+                "comment": ""
+            }
+        }
+        '''
+        curdir = os.path.abspath(os.path.dirname(__file__))
+        curdir = os.path.join(curdir,'certs')
+        curdir = curdir.replace('\\','\\\\')
+        commandline = commandline_fmt%(curdir)
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        jsonfile = None
+        ok = False
+        rootloggerhandler = None
+        oldsyserr = None
+        oldsyserr = sys.stderr
+        sys.stderr = open(os.devnull,'w+')
+        oldloggers = None
+        oldpropgate = 1
+        logger = logging.getLogger('extargsparse')
+        if len(logger.handlers) > 0:
+            oldloggers = []
+            for h in logger.handlers:
+                oldloggers.append(h)
+            logger.handlers = []
+            handler = logging.FileHandler(os.devnull,mode='a')
+            logger.handlers.append(handler)
+            # we set propagate ,will not exposed
+            oldpropgate = logger.propagate
+            logger.propagate = 0
+        rootlogger = logging.RootLogger(logging.WARN)
+        if len(rootlogger.handlers) > 0:
+            rootloggerhandler = []
+            for h in rootloggerhandler.handlers:
+                rootloggerhandler.append(h)
+            rootlogger.handlers = []
+            handler = logging.FileHandler(os.devnull,mode='a')
+            rootlogger.handlers.append(handler)
+        try:
+            jsonfile = self.__write_temp_file('{"emailaddress" : "unit@bingte.com","organizationname" : "BT RD","ssl" :{ "dir" : "./certs/bingte","name" : "bingte","subca" : true,"copy_extensions" : "copy","days" : 375,"crl_days" : 30,"bits" : 4096}}')
 
-
+            args = parser.parse_command_line(['--json',jsonfile],parser)
+            if oldloggers is not None:
+                logger = logging.getLogger('extargsparse')
+                for h in logger.handlers:
+                    h.close()
+                logger.handlers = []
+                for h in oldloggers:
+                    logger.handlers.append(h)
+                oldloggers = None
+                if oldpropgate is not None:
+                    logger.propagate = oldpropgate
+                    oldpropgate = None
+            if oldsyserr is not None:
+                sys.stderr.close()
+                sys.stderr = None
+                sys.stderr = oldsyserr
+                oldsyserr = None
+            if rootloggerhandler is not None:
+                rootlogger = logging.RootLogger(logging.WARN)
+                for h in rootlogger.handlers:
+                    h.close()
+                rootlogger.handlers = []
+                for h in rootloggerhandler:
+                    rootlogger.handlers.append(h)
+                rootloggerhandler = None
+            ok = True
+            self.assertEqual(ok,True)
+            logging.info('organizationunitname (%s)'%(args.organizationname))
+            self.assertEqual(len(args.organizationname),1)
+            self.assertEqual(args.organizationname[0],'BT')
+        finally:
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            jsonfile = None
+            if oldloggers is not None:
+                logger = logging.getLogger('extargsparse')
+                for h in logger.handlers:
+                    h.close()
+                logger.handlers = []
+                for h in oldloggers:
+                    logger.handlers.append(h)
+                oldloggers = None
+                if oldpropgate is not None:
+                    logger.propagate = oldpropgate
+                    oldpropgate = None
+            if oldsyserr is not None:
+                sys.stderr.close()
+                sys.stderr = None
+                sys.stderr = oldsyserr
+                oldsyserr = None
+            if rootloggerhandler is not None:
+                rootlogger = logging.RootLogger(logging.WARN)
+                for h in rootlogger.handlers:
+                    h.close()
+                rootlogger.handlers = []
+                for h in rootloggerhandler:
+                    rootlogger.handlers.append(h)
+                rootloggerhandler = None
+        return
 
 
 ##importdebugstart

@@ -146,7 +146,6 @@ def test_handler(args,parser):
 	testargs.extend(args.subnargs)
 	sys.argv[1:] = testargs
 	unittest.main()
-
 	sys.exit(0)
 	return
 
