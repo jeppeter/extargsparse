@@ -150,6 +150,30 @@ class _LoggerObject(object):
             inmsg = self.format_call_msg(msg,(callstack + 1))
         return self.__logger.fatal('%s'%(inmsg))
 
+    def call_func(self,funcname,*args,**kwargs):
+        mname = '__main__'
+        fname = funcname
+        try:
+            if '.' not in funcname:
+                m = importlib.import_module(mname)
+            else:
+                sarr = re.split('\.',funcname)
+                mname = '.'.join(sarr[:-1])
+                fname = sarr[-1]
+                m = importlib.import_module(mname)
+        except ImportError as e:
+            self.error('can not load %s'%(mname))
+            return None
+
+        for d in dir(m):
+            if d == fname:
+                val = getattr(m,d)
+                if hasattr(val,'__call__'):
+                    return val(*args,**kwargs)
+        self.error('can not call %s'%(funcname))
+        return None
+
+
 
 class _HelpSize(_LoggerObject):
     #####################################
@@ -424,7 +448,7 @@ class _ParserCompact(_LoggerObject):
         return s
 
 class _ParseState(_LoggerObject):
-    def __init__(self,args,maincmd):
+    def __init__(self,args,maincmd,optattr=None):
         super(_ParseState,self).__init__()
         self.__cmdpaths=[maincmd]
         self.__curidx=0
@@ -434,6 +458,12 @@ class _ParseState(_LoggerObject):
         self.__validx = -1
         self.__args = args
         self.__ended = 0
+        if optattr is None:
+            self.__optattr = ExtArgsOptions()
+        elif issubclass(optattr.__class__,ExtArgsOptions):
+            self.__optattr = optattr
+        else:
+            raise Exception('[%s] not ExtArgsOptions or subclass'%(optattr))
         return
 
     def format_cmdname_path(self,curparser=None):
@@ -661,34 +691,6 @@ def set_attr_args(self,args,prefix):
 class ExtArgsParse(_LoggerObject):
     reserved_args = ['subcommand','subnargs','json','nargs','extargs','help','args']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
-
-    def __call_func_args(self,funcname,args,Context):
-        mname = '__main__'
-        fname = funcname
-        if len(self.__output_mode) > 0:
-            if self.__output_mode[-1] == 'bash' or self.__output_mode[-1] == 'c':
-                return args
-        try:
-            if '.' not in funcname:
-                m = importlib.import_module(mname)
-            else:
-                sarr = re.split('\.',funcname)
-                mname = '.'.join(sarr[:-1])
-                fname = sarr[-1]
-                m = importlib.import_module(mname)
-        except ImportError as e:
-            self.error('can not load %s'%(mname))
-            return args
-
-        for d in dir(m):
-            if d == fname:
-                val = getattr(m,d)
-                if hasattr(val,'__call__'):
-                    val(args,Context)
-                    return args
-        self.error('can not call %s'%(funcname))
-        return args
-
 
     def __format_cmd_from_cmd_array(self,cmdarray):
         if cmdarray is None:
@@ -1494,7 +1496,8 @@ class ExtArgsParse(_LoggerObject):
                 cmds = self.__find_commands_in_path(args.subcommand)
                 funcname = cmds[-1].keycls.function
                 if funcname is not None:
-                    return self.__call_func_args(funcname,args,Context)
+                    self.call_func(funcname,args,Context)
+                    return args
         finally:
             if pushmode:
                 self.__output_mode.pop()

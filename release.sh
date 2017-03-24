@@ -5,9 +5,10 @@ script_dir=`dirname $_script_file`
 
 if [ -z "$PYTHON" ]
 	then
-	PYTHON=`which python`
+	PYTHON=python
 	export PYTHON
 fi
+echo "PYTHON [$PYTHON]" >&2
 
 wait_file_until()
 {
