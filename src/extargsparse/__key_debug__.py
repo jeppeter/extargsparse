@@ -165,6 +165,8 @@ class ExtKeyParse(object):
         self.__isflag = None
         self.__type = None
         self.__attr = None
+        self.__longprefix= '--'
+        self.__shortprefix = '-'
         return
 
     def __eq_name__(self,other,name):
@@ -194,6 +196,10 @@ class ExtKeyParse(object):
         if not self.__eq_name__(other,'type'):
             return False
         if not self.__eq_name__(other,'value'):
+            return False
+        if self.__longprefix != other.__longprefix:
+            return False
+        if self.__shortprefix != other.__shortprefix:
             return False
         return True
 
@@ -471,7 +477,7 @@ class ExtKeyParse(object):
 
 
 
-    def __init__(self,prefix,key,value,isflag=False,ishelp=False,isjsonfile=False):
+    def __init__(self,prefix,key,value,isflag=False,ishelp=False,isjsonfile=False,longprefix='--',shortprefix='-'):
         key = Utf8Encode(key).get_val()
         prefix = Utf8Encode(prefix).get_val()
         value = Utf8Encode(value).get_val()
@@ -485,6 +491,8 @@ class ExtKeyParse(object):
         self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|]+[a-zA-Z_0-9\|]*)',re.I)
         self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
         self.__origkey = key
+        self.__longprefix = longprefix
+        self.__shortprefix = shortprefix
         if isinstance(key,dict):
             raise Exception('can not accept key for dict type')
         else:
@@ -495,7 +503,7 @@ class ExtKeyParse(object):
         if keyname == 'longopt':
             if not self.__isflag or self.__flagname is None or self.__type == 'args':
                 raise Exception('can not set (%s) longopt'%(self.__origkey))
-            longopt = '--'
+            longopt = '%s'%(self.__longprefix)
             if self.__type == 'bool' and self.__value :
                 # we set no
                 longopt += 'no-'
@@ -510,7 +518,7 @@ class ExtKeyParse(object):
                 raise Exception('can not set (%s) shortopt'%(self.__origkey))
             shortopt = None
             if self.__shortflag:
-                shortopt = '-%s'%(self.__shortflag)
+                shortopt = '%s%s'%(self.__shortprefix,self.__shortflag)
             return shortopt
         elif keyname == 'optdest':
             if not self.__isflag or self.__flagname is None or self.__type == 'args':
@@ -577,6 +585,8 @@ class ExtKeyParse(object):
                 s += '<varname:%s>'%(self.__varname)
             if self.__value is not None:
                 s += '<value:%s>'%(self.__value)
+            s += '<longprefix:%s>'%(self.__longprefix)
+            s += '<shortprefix:%s>'%(self.__shortprefix)
         if self.__attr is not None:
             s += '<attr:%s>'%(self.__attr)
         s += '}'
@@ -1228,6 +1238,7 @@ class debug_key_test_case(unittest.TestCase):
         self.assertEqual(flag1.varname,'prefix_json')
         return
 
+
     def test_A042(self):
         flag  = ExtKeyParse('','main',{},False)
         self.assertEqual(flag.prefix,'main')
@@ -1238,6 +1249,24 @@ class debug_key_test_case(unittest.TestCase):
         self.assertEqual(flag.function,None)
         self.__opt_fail_check(flag)
         return
+
+    def test_A043(self):
+        flags = ExtKeyParse('','rollback|R## rollback not set ##',True,False,False,longprefix='++',shortprefix='+')
+        self.assertEqual(flags.flagname,'rollback')
+        self.assertEqual(flags.shortflag,'R')
+        self.assertEqual(flags.prefix,'')
+        self.assertEqual(flags.type,'bool')
+        self.assertEqual(flags.value,True)
+        self.assertEqual(flags.helpinfo,' rollback not set ')
+        self.assertEqual(flags.nargs,0)
+        self.assertEqual(flags.cmdname,None)
+        self.assertEqual(flags.function,None)
+        self.assertEqual(flags.optdest,'rollback')
+        self.assertEqual(flags.varname,'rollback')
+        self.assertEqual(flags.longopt,'++no-rollback')
+        self.assertEqual(flags.shortopt,'+R')
+        return
+
 
 
 ##importdebugstart
