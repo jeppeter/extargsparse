@@ -2,12 +2,10 @@
 > python command package for json string set
 
 ### Release History
+* Mar 24th 2017 Release 0.8.8 to extend new functions for parse options
 * Mar 15th 2017 Release 0.8.2 to fixup bug when call not type equal
 * Feb 20th 2017 Release 0.8.0 to fixup bug in the set_attr_args functions
-* Jan 31st 2017 Release 0.7.8 to fixup bug when in the environment variable on count type
-* Jan 20th 2017 Release 0.7.6 to fixup bug in error_msg when msg not found
 * Dec 29th 2016 Release 0.7.2 to make get_subcommands and get_cmdopts with sequential order
-* Dec 28th 2016 Release 0.7.0 to fixup some bugs in parse float
 * Dec 13th 2016 Release 0.5.6 add __version__ in the extargsparse support
 * Dec 13th 2016 Release 0.5.4 add get_cmdkey method in ExtArgsParse Object
 * Dec 12th 2016 Release 0.5.2 it fixup bug in release mode of __key_debug__.py
@@ -411,6 +409,102 @@ list = ['arg1','arg2']
 string = 's_var'
 subnargs = ['cc','dd']
 ```
+
+
+### extension for help and long opt
+```python
+#! /usr/bin/env python
+
+
+import tempfile
+import sys
+import os
+import extargsparse
+
+
+def pair_parse(args,validx,keycls,params):
+  if (validx + 1) >= len(params):
+    raise Exception('need 2 args for [++pair|+p]')
+  val = getattr(args,keycls.optdest,None)
+  if val is None:
+    val = []
+  val.append(params[validx])
+  val.append(params[(validx+1)])
+  setattr(args,keycls.optdest,val)
+  return 2
+
+def pair_help(keycls):
+  return '[first] [second]'
+
+
+def main():
+  commandline='''
+  {
+    "verbose|v" : "+",
+    "pair|p!optparse=pair_parse;opthelp=pair_help!" : [],
+    "$" : "*"
+  }
+  '''
+  options = extargsparse.ExtArgsOptions()
+  options.longprefix = '++'
+  options.shortprefix = '+'
+  options.jsonlong = 'jsonfile'
+  options.helplong = 'usage'
+  options.helpshort = '?'
+  parser = extargsparse.ExtArgsParse(options)
+  parser.load_command_line_string(commandline)
+  args = parser.parse_command_line()
+  print('verbose [%d]'%(args.verbose))
+  print('pair (%s)'%(args.pair))
+  print('args (%s)'%(args.args))
+  return
+
+if __name__ == '__main__':
+  main()
+```
+
+```shell
+python3 opthelp.py +?
+```
+
+> result will be
+
+```shell
+opthandle.py  [OPTIONS] [args...]
+[OPTIONS]
+    ++jsonfile    jsonfile  json input file to get the value set
+    ++usage|+?              to display this help information
+    ++verbose|+v  verbose   verbose set default(0)
+    ++pair|+p     pair      [first] [second]
+```
+
+```shell
+python opthandle.py ++pair cc ss rr +vvvv
+```
+
+> result will be
+
+```shell
+verbose [4]
+pair (['cc', 'ss'])
+args (['rr'])
+```
+
+###  extension attribute 
+
+* opthelp 
+ **   help format information string format like pair_help(keycls) keycls is the parse object to handle ,it can be 
+
+* optparse
+ **   parse function for opt 
+     like
+     def parse_opt(args,validx,keycls,params):
+   *** args is the return value from the parse_command_line
+       validx is the value index in the params
+       keycls is the option object you can use optdest for the destination
+       params is the command line all in
+* 
+
 
 
 ### extension get example

@@ -163,7 +163,7 @@ def main():
 			"verbose|v" : "+",
 			"release<release_handler>##release file##" : {
 				"output|O" : "%s",
-				"importnames|I" : ["debug_args_function","debug_tcebase","debug_extargs_test_case","_LoggerObject"],
+				"importnames|I" : ["debug_args_function","debug_tcebase","debug_set_2_args","debug_opthelp_set","debug_extargs_test_case","_LoggerObject"],
 				"adds|A" : ["ExtArgsParse","ExtArgsOptions","set_attr_args","SUB_COMMAND_JSON_SET","COMMAND_JSON_SET","ENVIRONMENT_SET","ENV_SUB_COMMAND_JSON_SET","ENV_COMMAND_JSON_SET"]
 			},
 			"test<test_handler>##test mode##" : {

@@ -486,8 +486,8 @@ class ExtKeyParse(object):
         self.__cmdexpr = re.compile('^([^\#\<\>\+\$\!]+)',re.I)
         self.__prefixexpr = re.compile('\+([a-zA-Z]+[a-zA-Z_\-0-9]*)',re.I)
         self.__funcexpr = re.compile('<([^\<\>\#\$\| \t\!]+)>',re.I)
-        self.__flagexpr = re.compile('^([a-zA-Z_\|]+[a-zA-Z_0-9\|]*)',re.I)
-        self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|]+[a-zA-Z_0-9\|]*)',re.I)
+        self.__flagexpr = re.compile('^([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?]*)',re.I)
+        self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?]*)',re.I)
         self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
         self.__origkey = key
         self.__longprefix = longprefix

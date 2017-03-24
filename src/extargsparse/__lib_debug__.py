@@ -94,6 +94,8 @@ class _LoggerObject(object):
             handler.setFormatter(formatter)
             self.__logger.addHandler(handler)
             self.__logger.setLevel(loglvl)
+            # we do not want any more output debug
+            self.__logger.propagate = False
 
     def format_string(self,arr):
         s = ''
@@ -217,26 +219,29 @@ class _HelpSize(_LoggerObject):
 
 class _ParserCompact(_LoggerObject):
     def __get_help_info(self,keycls):
-        helpinfo = ''
-        if keycls.type == 'bool':
-            if keycls.value :
-                helpinfo += '%s set false default(True)'%(keycls.optdest)
-            else:
-                helpinfo += '%s set true default(False)'%(keycls.optdest)
-        elif keycls.type == 'string' and keycls.value == '+':
-            if keycls.isflag:
-                helpinfo += '%s inc'%(keycls.optdest)
-            else:
-                raise Exception('cmd(%s) can not set value(%s)'%(keycls.cmdname,keycls.value))
-        elif keycls.type == 'help' :
-            helpinfo += 'to display this help information'
+        if keycls.attr is not None and keycls.attr.opthelp is not None:
+            helpinfo = self.call_func(keycls.attr.opthelp,keycls)
         else:
-            if keycls.isflag :
-                helpinfo += '%s set default(%s)'%(keycls.optdest,keycls.value)
+            helpinfo = ''
+            if keycls.type == 'bool':
+                if keycls.value :
+                    helpinfo += '%s set false default(True)'%(keycls.optdest)
+                else:
+                    helpinfo += '%s set true default(False)'%(keycls.optdest)
+            elif keycls.type == 'string' and keycls.value == '+':
+                if keycls.isflag:
+                    helpinfo += '%s inc'%(keycls.optdest)
+                else:
+                    raise Exception('cmd(%s) can not set value(%s)'%(keycls.cmdname,keycls.value))
+            elif keycls.type == 'help' :
+                helpinfo += 'to display this help information'
             else:
-                helpinfo += '%s command exec'%(keycls.cmdname)
-        if keycls.helpinfo:
-            helpinfo = keycls.helpinfo
+                if keycls.isflag :
+                    helpinfo += '%s set default(%s)'%(keycls.optdest,keycls.value)
+                else:
+                    helpinfo += '%s command exec'%(keycls.cmdname)
+            if keycls.helpinfo:
+                helpinfo = keycls.helpinfo
         return helpinfo
 
     def __init__(self,keycls=None,opt=None):
@@ -282,7 +287,7 @@ class _ParserCompact(_LoggerObject):
         if sname is not None:
             optname += '|%s'%(sname)
         optexpr = ''
-        if opt.type != 'bool' and opt.type != 'args' and opt.type != 'dict':
+        if opt.type != 'bool' and opt.type != 'args' and opt.type != 'dict' and opt.type != 'help':
             optexpr = opt.varname
             optexpr = optexpr.replace('-','_')
         opthelp = self.__get_help_info(opt)
@@ -454,16 +459,27 @@ class _ParseState(_LoggerObject):
         self.__curidx=0
         self.__curcharidx=-1
         self.__shortcharargs = -1
+        self.__longargs = -1
         self.__keyidx = -1
         self.__validx = -1
         self.__args = args
         self.__ended = 0
-        if optattr is None:
-            self.__optattr = ExtArgsOptions()
-        elif issubclass(optattr.__class__,ExtArgsOptions):
-            self.__optattr = optattr
-        else:
-            raise Exception('[%s] not ExtArgsOptions or subclass'%(optattr))
+        self.__longprefix = '--'
+        self.__shortprefix = '-'
+        self.__bundlemode = True
+        self.__parseall = True
+        self.__leftargs = []
+        if optattr is not None:
+            if not issubclass(optattr.__class__,ExtArgsOptions):
+                raise Exception('[%s] not ExtArgsOptions or subclass'%(optattr))
+            if optattr.longprefix is not None:
+                self.__longprefix = optattr.longprefix
+            if optattr.shortprefix is not None:
+                self.__shortprefix = optattr.shortprefix
+            if self.__longprefix == self.__shortprefix:
+                self.__bundlemode = False
+            if optattr.parseall is not None:
+                self.__parseall = optattr.parseall
         return
 
     def format_cmdname_path(self,curparser=None):
@@ -485,30 +501,61 @@ class _ParseState(_LoggerObject):
                 return cmd.keycls
         return None
 
+    def add_parse_args(self,nargs):
+        if self.__curcharidx >= 0 :
+            if nargs > 0 and self.__shortcharargs > 0:
+                raise Exception('[%s] already set args'%(self.__args[self.__curidx]))
+            if self.__shortcharargs < 0:
+                self.__shortcharargs = 0
+            self.__shortcharargs += nargs
+        else:
+            if self.__longargs > 0:
+                raise Exception('[%s] not handled '%(self.__args[self.__curidx]))
+            if self.__longargs < 0:
+                self.__longargs = 0
+            self.__longargs += nargs
+            self.info('longargs [%d] nargs[%d]'%(self.__longargs,nargs))
+        return
+
+
 
     def __find_key_cls(self):
+        if self.__ended > 0 :
+            return None
+        if self.__longargs >= 0:
+            # we handled this over
+            assert(self.__curcharidx < 0)
+            self.__curidx += self.__longargs
+            assert(len(self.__args) >= self.__curidx)
+            self.__longargs = -1
+            self.__validx = -1
+            self.__keyidx = -1
         oldcharidx = self.__curcharidx
         oldidx = self.__curidx
         if oldidx >= len(self.__args):
             self.__curidx = oldidx
             self.__curcharidx = -1
             self.__shortcharargs = -1
+            self.__longargs = -1
             self.__keyidx = -1
-            self.__ended = 1
             self.__validx = -1
+            self.__ended = 1
             return None
         if oldcharidx >= 0:
             c = self.__args[oldidx]
             if len(c) <= oldcharidx:
                 # this is the end of shortopt like -vhc pass c option
                 oldidx += 1
+                self.info('oldidx [%s]'%(oldidx))
                 if self.__shortcharargs > 0:
-                    oldidx += 1
+                    oldidx += self.__shortcharargs
+                self.info('oldidx [%s] __shortcharargs [%d]'%(oldidx,self.__shortcharargs))
                 self.__curidx= oldidx
                 self.__curcharidx = -1
                 self.__shortcharargs = -1
                 self.__keyidx = -1
                 self.__validx = -1
+                self.__longargs = -1
                 return self.__find_key_cls()
             # ok we should get the value
             curch = c[oldcharidx]
@@ -524,36 +571,88 @@ class _ParseState(_LoggerObject):
                     if opt.flagname == '$':
                         continue
                     if opt.shortflag is not None:
-                        self.info('opt %s %c %c'%(opt,opt.shortflag,curch))
+                        #self.info('opt %s %c %c'%(opt,opt.shortflag,curch))
                         if opt.shortflag == curch:
                             self.__keyidx = oldidx
-                            self.__validx = -1
-                            if opt.needarg:
-                                if self.__shortcharargs >= 0 :
-                                    raise Exception('can not accept twice need args in (%s)'%(self.__args[oldidx]))
-                                elif len(self.__args) <= (oldidx+1):
-                                    raise Exception('can not find no more args for (%s)'%(self.__args[oldidx]))
-                                self.__shortcharargs = oldcharidx
-                                self.__validx = oldidx+1
+                            self.__validx = (oldidx + 1)
                             self.__curidx = oldidx
                             self.__curcharidx = (oldcharidx + 1)
-                            self.info('get %s %d'%(opt,self.__validx))
+                            logging.info('%s validx [%s]'%(opt,self.__validx))
                             return opt
                 idx -= 1
             # now it is nothig to find so we assume that this is the command name
             raise Exception('can not parse (%s)'%(self.__args[oldidx]))
         else:
-            curarg = self.__args[oldidx]
-            if curarg.startswith('--'):
-                if curarg == '--':
-                    self.__keyidx = -1
-                    self.__validx = -1
-                    self.__curidx = oldidx + 1
-                    self.__curcharidx = -1
-                    self.__shortcharargs = -1
-                    return None
-                #self.info('argv[%d] %s oldcharidx %d'%(oldidx,self.__args[oldidx],oldcharidx))
+            if self.__bundlemode:            
+                curarg = self.__args[oldidx]
+                if curarg.startswith(self.__longprefix):
+                    if curarg == self.__longprefix:
+                        self.__keyidx = -1
+                        self.__curidx = oldidx + 1
+                        self.__curcharidx = -1
+                        self.__validx = (oldidx + 1)
+                        self.__shortcharargs = -1
+                        self.__longargs = -1
+                        self.__ended = 1
+                        if len(self.__args) > self.__curidx:
+                            self.__leftargs.extend(self.__args[self.__curidx:])
+                        return None
+                    #self.info('argv[%d] %s oldcharidx %d'%(oldidx,self.__args[oldidx],oldcharidx))
+                    idx = len(self.__cmdpaths) -1
+                    while idx >= 0:
+                        cmd = self.__cmdpaths[idx]
+                        for opt in cmd.cmdopts:
+                            if not opt.isflag:
+                                continue
+                            if opt.flagname == '$':
+                                continue
+                            self.info('[%d]longopt %s curarg %s'%(idx,opt.longopt,curarg))
+                            if opt.longopt == curarg:
+                                self.__keyidx = oldidx
+                                oldidx += 1
+                                self.__validx = oldidx
+                                self.__shortcharargs = -1
+                                self.__longargs = -1
+                                self.info('oldidx %d (len %d)'%(oldidx,len(self.__args)))
+                                self.__curidx = oldidx
+                                self.__curcharidx = -1
+                                return opt
+                        idx -= 1
+                    raise Exception('can not parse (%s)'%(self.__args[oldidx]))
+                elif curarg.startswith(self.__shortprefix):
+                    if curarg == self.__shortprefix:
+                        if self.__parseall:
+                            self.__leftargs.append(curarg)
+                            oldidx += 1
+                            self.__curidx = oldidx
+                            self.__curcharidx = -1
+                            self.__longargs = -1
+                            self.__shortcharargs = -1
+                            self.__keyidx = -1
+                            self.__validx = -1
+                            return self.__find_key_cls()
+                        else:
+                            self.__ended = 1
+                            self.__leftargs.extend(self.__args[oldidx:])
+                            self.__validx = oldidx
+                            self.__keyidx = -1
+                            self.__curidx = oldidx
+                            self.__curcharidx = -1
+                            self.__shortcharargs = -1
+                            self.__longargs = -1
+                            return None
+                    # not to 
+                    oldcharidx = len(self.__shortprefix)
+                    self.__curidx = oldidx
+                    self.__curcharidx = oldcharidx
+                    # to find the next one
+                    return self.__find_key_cls()
+            else:
+                # not bundle mode ,it means that the long prefix and short prefix are the same
+                # so we should test one by one
+                # first to check for the long opt
                 idx = len(self.__cmdpaths) -1
+                curarg = self.__args[oldidx]
                 while idx >= 0:
                     cmd = self.__cmdpaths[idx]
                     for opt in cmd.cmdopts:
@@ -561,37 +660,38 @@ class _ParseState(_LoggerObject):
                             continue
                         if opt.flagname == '$':
                             continue
-                        self.info('[%d]longopt %s curarg %s'%(idx,opt.longopt,curarg))
+                        self.info('[%d](%s) curarg [%s]'%(idx,opt.longopt,curarg))
                         if opt.longopt == curarg:
                             self.__keyidx = oldidx
-                            oldidx += 1
-                            self.__validx = -1
+                            self.__validx = (oldidx + 1)
                             self.__shortcharargs = -1
-                            if opt.needarg:
-                                if len(self.__args) <= (oldidx):
-                                    raise Exception('no more for (%s)'%(curarg))
-                                self.__validx = oldidx
-                                oldidx += 1
+                            self.__longargs = -1
                             self.info('oldidx %d (len %d)'%(oldidx,len(self.__args)))
-                            self.__curidx = oldidx
+                            self.__curidx = (oldidx + 1)
                             self.__curcharidx = -1
                             return opt
                     idx -= 1
-                raise Exception('can not parse (%s)'%(self.__args[oldidx]))
-            elif curarg.startswith('-'):
-                if curarg == '-':
-                    self.__keyidx = -1
-                    self.__validx = -1
-                    self.__curidx = oldidx
-                    self.__curcharidx = -1
-                    self.__shortcharargs = -1
-                    return None
-                # not to 
-                oldcharidx = 1
-                self.__curidx = oldidx
-                self.__curcharidx = oldcharidx
-                # to find the next one
-                return self.__find_key_cls()
+                idx = len(self.__cmdpaths) - 1
+                while idx >= 0:
+                    cmd = self.__cmdpaths[idx]
+                    for opt in cmd.cmdopts:
+                        if not opt.isflag:
+                            continue
+                        if opt.flagname == '$':
+                            continue
+                        self.info('[%d](%s) curarg [%s]'%(idx,opt.shortopt,curarg))
+                        if opt.shortopt is not None and opt.shortopt == curarg:
+                            self.__keyidx = oldidx
+                            self.__validx = (oldidx +1)
+                            self.__shortcharargs = -1
+                            self.__longargs = -1
+                            self.info('oldidx %d (len %d)'%(oldidx,len(self.__args)))
+                            self.__curidx = oldidx
+                            self.__curcharidx = len(opt.shortopt)
+                            self.info('[%s]shortopt (%s)'%(oldidx,opt.shortopt))
+                            return opt
+                    idx -= 1
+
         # come here because we may be the command
         keycls = self.__find_sub_command(self.__args[oldidx])
         if keycls is not None:
@@ -599,38 +699,52 @@ class _ParseState(_LoggerObject):
             self.info('find %s'%(self.__args[oldidx]))
             self.__keyidx = oldidx
             self.__curidx = (oldidx + 1)
+            self.__validx = (oldidx + 1)
             self.__curcharidx = -1
             self.__shortcharargs = -1
-            self.__validx = -1
+            self.__longargs = -1
             return keycls
-        self.__keyidx = -1
-        self.__curidx = oldidx
-        self.__curcharidx = -1
-        self.__shortcharargs = -1
-        self.__validx = -1
-        return None
+        if self.__parseall:
+            # we put it into the 
+            self.__leftargs.append(self.__args[oldidx])
+            oldidx += 1
+            self.__keyidx = -1
+            self.__validx = oldidx
+            self.__curidx = oldidx
+            self.__curcharidx = -1
+            self.__shortcharargs = -1
+            self.__longargs = -1
+            return self.__find_key_cls()
+        else:
+            # this is over
+            self.__ended = 1
+            self.__leftargs.extend(self.__args[oldidx:])
+            self.__keyidx = -1
+            self.__curidx = oldidx
+            self.__curcharidx = -1
+            self.__shortcharargs = -1
+            self.__longargs = -1
+            return None
 
 
     def step_one(self):
         key = None
         value = None
         keycls = None
-        if self.__ended > 0 or len(self.__args) <= self.__curidx:
+        if self.__ended > 0 :
             self.info('args %s __curidx %d'%(self.__args,self.__curidx))
-            if len(self.__args) > (self.__curidx):
-                value = self.__args[(self.__curidx):]
-            return None,value,None
+            value = self.__leftargs
+            return self.__curidx,self.__leftargs,None
         keycls = self.__find_key_cls()
         if keycls is None:
-            if len(self.__args) > (self.__curidx):
-                value = self.__args[(self.__curidx):]
-            return None,value,None
+            assert(self.__ended > 0)
+            return self.__curidx,self.__leftargs,None
         key = self.__args[self.__keyidx]
-        if not keycls.iscmd and self.__validx >= 0 and self.__validx < len(self.__args):
-            value = self.__args[self.__validx]
+        if not keycls.iscmd:
+            optval = keycls.optdest
         elif keycls.iscmd:
-            value = self.format_cmdname_path(self.__cmdpaths)
-        return key,value,keycls
+            optval = self.format_cmdname_path(self.__cmdpaths)
+        return self.__validx,optval,keycls
 
     def get_cmd_paths(self):
         return self.__cmdpaths
@@ -689,7 +803,7 @@ def set_attr_args(self,args,prefix):
 
 
 class ExtArgsParse(_LoggerObject):
-    reserved_args = ['subcommand','subnargs','json','nargs','extargs','help','args']
+    reserved_args = ['subcommand','subnargs','nargs','extargs','args']
     priority_args = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
 
     def __format_cmd_from_cmd_array(self,cmdarray):
@@ -702,32 +816,52 @@ class ExtArgsParse(_LoggerObject):
             cmdname += '%s'%(c.cmdname)
         return cmdname
 
-    def __bool_action(self,args,keycls,value):
+    def __need_args_error(args,validx,keycls,params):
+        keyval = ''
+        if validx > 0:
+            keyval = params[validx-1]
+        if keyval == keycls.longopt:
+            keyval = keycls.longopt
+        elif keycls.shortflag is not None and shortflag in keyval:
+            keyval = keycls.shortopt
+        self.error_msg('[%s] need args'%(keyval))        
+        return
+
+    def __bool_action(self,args,validx,keycls,params):
         if keycls.value :
             setattr(args,keycls.optdest,False)
         else:
             setattr(args,keycls.optdest,True)
-        return args
+        return 0
 
-    def __append_action(self,args,keycls,value):
+    def __append_action(self,args,validx,keycls,params):
+        if validx >= len(params):
+            self.__need_args_error(validx,keycls,params)
+        value = params[validx]
         sarr = getattr(args,keycls.optdest,None)
         if sarr is None:
             sarr = []
         sarr.append(value)
         setattr(args,keycls.optdest,sarr)
-        return args
+        return 1
 
-    def __string_action(self,args,keycls,value):
-        setattr(args,keycls.optdest,value)
-        return args
+    def __string_action(self,args,validx,keycls,params):
+        if validx >= len(params):
+            self.__need_args_error(validx,keycls,params)
+        setattr(args,keycls.optdest,params[validx])
+        return 1
 
 
-    def __jsonfile_action(self,args,keycls,value):
-        return self.__string_action(args,keycls,value)
+    def __jsonfile_action(self,args,validx,keycls,params):
+        return self.__string_action(args,validx,keycls,params)
 
-    def __int_action(self,args,keycls,value):
+    def __int_action(self,args,validx,keycls,params):
+        if validx >= len(params):
+            self.__need_args_error(validx,keycls,params)
         try:
             base = 10
+            value = params[validx]
+            self.info('set value [%d][%s]'%(validx,value))
             if value.startswith('0x') or value.startswith('0X'):
                 value = value[2:]
                 base = 16
@@ -739,32 +873,35 @@ class ExtArgsParse(_LoggerObject):
         except:
             msg = '%s not valid int'%(value)
             self.error_msg(msg)            
-        return args
+        return 1
 
-    def __inc_action(self,args,keycls,value):
+    def __inc_action(self,args,validx,keycls,params):
         val = getattr(args,keycls.optdest,None)
         if val is None:
             val = 0
         val += 1
         setattr(args,keycls.optdest,val)
-        return args
+        return 0
 
-    def __float_action(self,args,keycls,value):
+    def __float_action(self,args,validx,keycls,params):
+        if validx >= len(params):
+            self.__need_args_error(validx,keycls,params)
         try:
+            value = params[validx]
             num = float(value)
             setattr(args,keycls.optdest,num)
         except:
             msg = 'can not parse %s'%(value)
             self.error_msg(msg)
-        return args
+        return 1
 
-    def __help_action(self,args,keycls,value):
+    def __help_action(self,args,validx,keycls,value):
         self.print_help(sys.stdout,value)
         sys.exit(0)
-        return args
+        return 0
 
-    def __command_action(self,args,keycls,value):
-        return args
+    def __command_action(self,args,validx,keycls,params):
+        return 0
 
     def error_msg(self,message):
         output = False
@@ -780,7 +917,7 @@ class ExtArgsParse(_LoggerObject):
                 sys.exit(3)
         if not output :
             s = 'parse command error\n'
-            s += '    %s'%(self.format_call_msg(message,1))
+            s += '    %s'%(self.format_call_msg(message,2))
 
         if self.__error_handler== 'exit':
             sys.stderr.write('%s'%(s))
@@ -855,18 +992,21 @@ class ExtArgsParse(_LoggerObject):
         return True
 
     def __load_command_line_json_added(self,curparser=None):
-        prefix = ''
-        key = 'json##json input file to get the value set##'
+        prefix = ''        
+        key = '%s##json input file to get the value set##'%(self.__jsonlong)
         value = None
         prefix = self.__format_cmd_from_cmd_array(curparser)
         prefix = prefix.replace('.','_')
-        keycls = keyparse.ExtKeyParse(prefix,key,value,True,False,True)
+        keycls = keyparse.ExtKeyParse(prefix,key,value,True,False,True,self.__longprefix,self.__shortprefix)
         return self.__load_command_line_jsonfile(keycls,curparser)
 
     def __load_command_line_help_added(self,curparser=None):
-        key = 'help|h##to display this help information##'
+        key = '%s'%(self.__helplong)
+        if self.__helpshort:
+            key += '|%s'%(self.__helpshort)
+        key += '##to display this help information##'
         value = None
-        keycls = keyparse.ExtKeyParse('',key,value,True,True)
+        keycls = keyparse.ExtKeyParse('',key,value,True,True,False,self.__longprefix,self.__shortprefix)
         #self.info('[%s] add help'%(self.__format_cmd_from_cmd_array(curparser)))
         return self.__load_command_line_help(keycls,curparser)
 
@@ -875,7 +1015,8 @@ class ExtArgsParse(_LoggerObject):
         super(ExtArgsParse,self).__init__()
         if options is None:
             options = ExtArgsOptions()
-        self.__maincmd = _ParserCompact(None)
+        self.__options = options
+        self.__maincmd = _ParserCompact(None,options)
 
         self.__maincmd.prog = options.prog
         self.__maincmd.usage = options.usage
@@ -886,6 +1027,25 @@ class ExtArgsParse(_LoggerObject):
         self.__help_handler = options.helphandler
         self.__output_mode = []
         self.__ended = 0
+        self.__longprefix = '--'
+        self.__shortprefix = '-'
+        self.__helplong = 'help'
+        self.__helpshort = 'h'
+        self.__jsonlong = 'json'
+        if self.__options.longprefix is not None:
+            self.__longprefix = self.__options.longprefix
+        if self.__options.shortprefix is not None:
+            self.__shortprefix = self.__options.shortprefix
+
+        if self.__options.helplong is not None and len(self.__options.helplong) > 1:
+            self.__helplong = self.__options.helplong
+
+        if self.__options.helpshort is not None and len(self.__options.helpshort) == 1:
+            self.__helpshort = self.__options.helpshort
+
+        if self.__options.jsonlong is not None and len(self.__options.jsonlong) > 1:
+            self.__jsonlong = self.__options.jsonlong
+
         self.__load_command_map = {
             'string' : self.__load_command_line_base,
             'unicode' : self.__load_command_line_base,
@@ -1055,7 +1215,7 @@ class ExtArgsParse(_LoggerObject):
         for k in d.keys():
             v = d[k]
             self.info('%s , %s , %s , True'%(prefix,k,v))
-            keycls = keyparse.ExtKeyParse(prefix,k,v,False)
+            keycls = keyparse.ExtKeyParse(prefix,k,v,False,False,False,self.__longprefix,self.__shortprefix)
             valid = self.__load_command_map[keycls.type](prefix,keycls,parentpath)
             if not valid:
                 msg = 'can not add (%s)'%(k,v)
@@ -1326,7 +1486,7 @@ class ExtArgsParse(_LoggerObject):
             while idx >= 2:
                 subname = self.__format_cmd_from_cmd_array(cmds[:idx])
                 prefix = subname.replace('.','_')
-                jsondest = '%s_json'%(prefix)
+                jsondest = '%s_%s'%(prefix,self.__jsonlong)
                 jsonfile = getattr(args,jsondest,None)
                 if jsonfile is not None:
                     # ok we should make this parse
@@ -1355,7 +1515,7 @@ class ExtArgsParse(_LoggerObject):
             while idx >= 2:
                 subname = self.__format_cmd_from_cmd_array(cmds[:idx])
                 prefix = subname.replace('.','_')
-                jsondest = '%s_json'%(prefix)
+                jsondest = '%s_%s'%(prefix,self.__jsonlong)
                 jsondest = jsondest.replace('-','_')
                 jsondest = jsondest.upper()
                 jsonfile = os.getenv(jsondest,None)
@@ -1367,7 +1527,11 @@ class ExtArgsParse(_LoggerObject):
 
     def __parse_env_command_json_set(self,args):
         # to get the json existed 
-        jsonfile = os.getenv('EXTARGSPARSE_JSON',None)
+        jsonenv = 'EXTARGSPARSE_%s'%(self.__jsonlong)
+        jsonenv = jsonenv.upper()
+        jsonenv = jsonenv.replace('-','_')
+        jsonenv = jsonenv.replace('.','_')
+        jsonfile = os.getenv(jsonenv,None)
         if jsonfile is not None:
             args = self.__load_jsonfile(args,'',jsonfile)
         return args
@@ -1428,18 +1592,21 @@ class ExtArgsParse(_LoggerObject):
         return args
 
 
-    def __call_opt_method(self,args,key,value,keycls):
-        args = self.__opt_parse_handle_map[keycls.type](args,keycls,value)
-        return args
+    def __call_opt_method(self,args,validx,keycls,params):
+        if keycls.attr is not None and keycls.attr.optparse is not None:
+            nargs = self.call_func(keycls.attr.optparse,args,validx,keycls,params)
+        else:
+            nargs = self.__opt_parse_handle_map[keycls.type](args,validx,keycls,params)
+        return nargs
 
     def parse_args(self,params=None):
         if params is None:
             params = sys.argv[1:]
-        parsestate = _ParseState(params,self.__maincmd)
+        parsestate = _ParseState(params,self.__maincmd,self.__options)
         args = NameSpaceEx()
         try:
             while True:
-                key,val,keycls = parsestate.step_one()
+                validx,optval,keycls = parsestate.step_one()
                 #self.info('key %s val %s keycls %s'%(key,val,keycls))
                 if keycls is None:
                     cmdpaths = parsestate.get_cmd_paths()
@@ -1447,16 +1614,17 @@ class ExtArgsParse(_LoggerObject):
                     for c in cmdpaths:
                         s += '%s'%(c)
                     self.info('cmdpaths %s'%(s))
-                    args = self.__set_args(args,cmdpaths,val)
+                    args = self.__set_args(args,cmdpaths,optval)
                     self.info('args %s'%(args))
                     break
                 elif keycls.type == 'help':
                     # now we should give special 
                     cmdpaths = parsestate.get_cmd_paths()
                     helpcmdname = self.__format_cmd_from_cmd_array(cmdpaths)
-                    self.__call_opt_method(args,key,helpcmdname,keycls)
+                    self.__call_opt_method(args,validx,keycls,helpcmdname)
                 else:
-                    args = self.__call_opt_method(args,key,val,keycls)
+                    nargs = self.__call_opt_method(args,validx,keycls,params)
+                parsestate.add_parse_args(nargs)
                 self.info('%s'%(args))
         except Exception as e:
             self.error_msg('parse (%s) error(%s)'%(params,e))
@@ -1597,6 +1765,20 @@ def debug_args_function(args,context):
         context.has_called_args = None
     return
 
+def debug_set_2_args(args,validx,keycls,params):
+    if (validx + 2) > len(params):
+        raise Exception('need 2 args')
+    val = getattr(args,keycls.optdest,None)
+    if val is None:
+        val = []
+    val.append(params[validx])
+    val.append(params[(validx + 1)])
+    setattr(args,keycls.optdest,val)
+    return 2
+
+def debug_opthelp_set(keycls):
+    return 'opthelp function set [%s] default value (%s)'%(keycls.optdest,keycls.value)
+
 class debug_tcebase(object):
     def __init__(self):
         return
@@ -1624,13 +1806,11 @@ class debug_extargs_test_case(unittest.TestCase):
         if getattr(self,keyname,None) is None:
             self.__logger = _LoggerObject()
 
-        if 'EXTARGSPARSE_JSON' in os.environ.keys():
-            del os.environ['EXTARGSPARSE_JSON']
         delone = True
         while delone:
             delone = False
             for k in os.environ.keys():
-                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('RDEP_'):
+                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k.startswith('RDEP_') or k.startswith('EXTARGSPARSE_'):
                     del os.environ[k]
                     delone = True
                     break        
@@ -3135,7 +3315,7 @@ class debug_extargs_test_case(unittest.TestCase):
 
 
     def test_A033(self):
-        test_reserved_args = ['subcommand','subnargs','json','nargs','extargs','help','args']
+        test_reserved_args = ['subcommand','subnargs','nargs','extargs','args']
         cmd1_fmt= '''
         {
             "%s" : true
@@ -3239,6 +3419,7 @@ class debug_extargs_test_case(unittest.TestCase):
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
             args = parser.parse_command_line(['-vvfvv','33.21','rdep','ip','--json',jsonfile,'--rdep-ip-json',rdepipjsonfile])
+            logging.info('args.subnargs(%s)'%(args.subnargs))
             self.assertEqual(len(args.subnargs),0)
             self.assertEqual(args.subcommand,'rdep.ip')
             self.assertEqual(args.verbose,4)
@@ -3593,6 +3774,337 @@ class debug_extargs_test_case(unittest.TestCase):
                 rootloggerhandler = None
         return
 
+
+    def test_A042(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        ok = 0
+        parser = ExtArgsParse()
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['-vvvK','kernel','--initrd','initrd','cc','dd','-E','encryptkey','-e','encryptfile','ipxe'],None)
+        self.assertEqual(args.subcommand,'ipxe')
+        self.assertEqual(args.subnargs,['cc','dd'])
+        return
+
+    def test_A043(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '-'
+        options.shortprefix = '-'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['-K','kernel','-initrd','initrd','cc','dd','-E','encryptkey','-e','encryptfile','ipxe'],None)
+        self.assertEqual(args.subcommand,'ipxe')
+        self.assertEqual(args.subnargs,['cc','dd'])
+        return
+
+    def test_A044(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['+K','kernel','++initrd','initrd','cc','dd','+E','encryptkey','+e','encryptfile','ipxe'],None)
+        self.assertEqual(args.subcommand,'ipxe')
+        self.assertEqual(args.subnargs,['cc','dd'])
+        return
+
+    def test_A045(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "pair|P!optparse=debug_set_2_args!" : [],
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['+K','kernel','++pair','initrd','cc','dd','+E','encryptkey','+e','encryptfile','ipxe'],None)
+        self.assertEqual(args.subcommand,'ipxe')
+        self.assertEqual(args.subnargs,['dd'])
+        self.assertEqual(args.pair,['initrd','cc'])
+        return
+
+    def test_A046(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "pair|P!optparse=debug_set_2_args;opthelp=debug_opthelp_set!" : [],
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        logging.info('get value (%s)'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        instr  = 0
+        # we must have this
+        matchexpr = re.compile('.*opthelp function set \[pair\].*')
+        for c in sarr:
+            if matchexpr.match(c):
+                instr = 1
+        self.assertEqual(instr,1)
+        return
+
+
+    def test_A047(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "pair|P!optparse=debug_set_2_args;opthelp=debug_opthelp_set!" : [],
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        options.helplong = 'usage'
+        options.helpshort = '?'
+        options.jsonlong = 'jsonfile'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        outfile = None
+        outfile = sys.stdout
+        sys.stdout = open(os.devnull,'w')
+        ok = False
+        try:
+            args = parser.parse_command_line(['++usage'],None)
+        except:
+            ok = True
+        if outfile is not None:
+            if outfile != sys.stdout:
+                sys.stdout.close()
+            sys.stdout = outfile
+            outfile = None
+        self.assertEqual(ok,True)
+        return
+
+
+    def test_A048(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
+            os.environ['DEP_JSONFILE'] = depjsonfile
+            options = ExtArgsOptions()
+            options.jsonlong = 'jsonfile'
+            parser = ExtArgsParse(options,priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+            
+            args = parser.parse_command_line(['-p','9000','dep','--dep-string','ee','ww'])
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port, 9000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
+            self.assertEqual(args.dep_string,'ee')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+        return
+
+    def test_A049(self):
+        commandline= '''
+        {
+            "verbose|v##very long very long very long very long very long very long very long very long very long very long very long very long very long very long very long very long very long very long##" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.screenwidth = 60
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        logging.info('get value (%s)'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        overlength = 0
+        # we must have to omit the first line
+        idx = 0
+        for c in sarr:
+            if len(c) > 65 and idx > 0:
+                # we do not set any 
+                overlength = 1
+            idx += 1
+        self.assertEqual(overlength,0)
+
+        options = ExtArgsOptions()
+        options.screenwidth = 80
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        logging.info('get value (%s)'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        overlength = 0
+        # we must have this
+        idx = 0
+        for c in sarr:
+            if len(c) > 65 and idx > 0:
+                overlength = 1
+            idx += 1
+        self.assertEqual(overlength,1)
+        return
+
+
+    def test_A050(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.helplong = 'usage'
+        options.helpshort = '?'
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        logging.info('get value (%s)'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        overlength = 0
+        matchexpr = re.compile('^\s+\+\+usage|\+\?\s+to display.*')
+        # we must have to omit the first line
+        matched = 0
+        for c in sarr:
+            if matchexpr.match(c):
+                # we do not set any 
+                matched = 1
+        self.assertEqual(matched ,1)
+        return
 
 ##importdebugstart
 
