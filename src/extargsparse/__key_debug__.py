@@ -9,8 +9,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 ##importdebugstart not use modules
 import unittest
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
-import rtools
+import disttools
 ##importdebugend
 
 ##extractend 
@@ -1281,7 +1280,7 @@ def debug_release():
             if not k.startswith('-'):
                 tofile = k
                 break
-    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']])
+    disttools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']])
     return
 
 def debug_main():

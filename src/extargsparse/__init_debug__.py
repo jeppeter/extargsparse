@@ -11,8 +11,7 @@ __version_info__ = "VERSIONINFO"
 
 
 ##importdebugstart
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
-import rtools
+import disttools
 import logging
 import re
 
@@ -47,7 +46,7 @@ def debug_release():
     repls[r'__lib_debug__'] = r'__lib__'
     repls[r'__key_debug__'] = r'__key__'
     #logging.info('repls %s'%(repls.keys()))
-    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
+    disttools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
     return
 
 def debug_main():

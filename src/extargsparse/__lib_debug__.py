@@ -19,8 +19,7 @@ import unittest
 import tempfile
 import subprocess
 import platform
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),'..','..')))
-import rtools
+import disttools
 ##importdebugend release not use modules
 
 ##extractend
@@ -2671,8 +2670,10 @@ class debug_extargs_test_case(unittest.TestCase):
         exprstr = '^\\s+%s'%(keycls.longopt)
         if keycls.shortopt is not None:
             exprstr += '\\|%s'%(keycls.shortopt)
-        exprstr += r'\s+'
-        exprstr += '%s\\s.*'%(keycls.optdest)
+        exprstr += r'\s+.*'
+        if keycls.nargs != 0:
+            exprstr += '%s.*'%(keycls.optdest)
+        logging.debug('sarr (%s) exprstr[%s]'%(sarr,exprstr))
         return self.__assert_string_expr(sarr,exprstr)
 
 
@@ -2715,7 +2716,7 @@ class debug_extargs_test_case(unittest.TestCase):
         parser.load_command_line_string(commandline)
         sio = StringIO.StringIO()
         parser.print_help(sio)
-        #self.info('\n%s'%(sio.getvalue()))
+        self.info('\n%s'%(sio.getvalue()))
         sarr = self.__split_strings(sio.getvalue())
         opts = parser.get_cmdopts()
         for opt in opts:
@@ -3606,7 +3607,7 @@ def debug_release():
     repls = dict()
     repls[r'__key_debug__'] = r'__key__'
     #logging.info('repls %s'%(repls.keys()))
-    rtools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
+    disttools.release_file('__main__',tofile,[r'^debug_*'],[[r'##importdebugstart.*',r'##importdebugend.*']],[],repls)
     return
 
 def debug_main():

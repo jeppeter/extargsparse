@@ -20,22 +20,19 @@ def _reload_extargs_path(curpath):
 def _reload_extargs_debug_path(curpath):
 	return _release_path_test(curpath,'__lib_debug__.py')
 
-def _reload_rtools_path(curpath):
-	return _release_path_test(curpath,'rtools.py')
 
 topdir = os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)),'..','..'))
 _reload_extargs_path(topdir)
-_reload_rtools_path(topdir)
 
 import extargsparse
 import logging
 import unittest
 import re
 import importlib
-import rtools
 import tempfile
 import subprocess
 import platform
+import disttools
 
 if sys.version[0] == '2':
 	import StringIO
@@ -125,7 +122,7 @@ def release_handler(args,parser):
 
 	repls['EXTARGS_RELEASE_MODE=False'] = 'EXTARGS_RELEASE_MODE=True'
 	logging.info('includes %s repls %s'%(includes,repr(repls)))
-	s = rtools.release_get_catch(mod,includes,[],repls)
+	s = disttools.release_get_catch(mod,includes,[],repls)
 	outs = slash_string(s)
 	releaserepls = dict()
 	releasekey = 'test_placer_holder'
@@ -133,7 +130,7 @@ def release_handler(args,parser):
 	releasekey += "True"
 	releaserepls[releasekey] = outs
 	logging.info('releaserepls %s'%(repr(releaserepls)))
-	rtools.release_file(None,args.release_output,[],[],[],releaserepls)
+	disttools.release_file(None,args.release_output,[],[],[],releaserepls)
 	sys.exit(0)
 	return
 
