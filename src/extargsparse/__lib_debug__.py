@@ -34,6 +34,36 @@ ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
 
 
+class ExtArgsOptions(object):
+    def __init__(self):
+        self.__obj = dict()
+        self.__obj['errorhandler'] = 'exit'
+        self.__obj['prog'] = sys.argv[0]
+        self.__logger = _LoggerObject()
+        return
+
+    def __setattr__(self,key,val):
+        if not key.startswith('_'):
+            #self.__logger.info('%s=%s'%(key,val),2)
+            self.__obj[key] = val
+            return
+        self.__dict__[key] = val
+        return
+
+    def __getattr__(self,key):
+        if not key.startswith('_'):
+            if key in self.__obj.keys():
+                return self.__obj[key]
+            return None
+        return self.__dict__[key]
+
+    def __str__(self):
+        s = '{'
+        for k in self.__obj.keys():
+            s += '%s=%s;'%(k,self.__obj[k])
+        s += '}'
+        return s
+
 
 class _LoggerObject(object):
     def __init__(self,cmdname='extargsparse'):
@@ -186,7 +216,7 @@ class _ParserCompact(_LoggerObject):
             helpinfo = keycls.helpinfo
         return helpinfo
 
-    def __init__(self,keycls=None):
+    def __init__(self,keycls=None,opt=None):
         super(_ParserCompact,self).__init__()
         if keycls is not None:
             assert(keycls.iscmd)
@@ -209,6 +239,12 @@ class _ParserCompact(_LoggerObject):
             self.subcommands = []
             self.helpinfo = None
             self.callfunction = None
+        self.screenwidth = 80
+        if opt is not None and issubclass(opt.__class__,ExtArgsOptions):
+            if opt.screenwidth is not None:
+                self.screenwidth = opt.screenwidth
+        if self.screenwidth < 40:
+            self.screenwidth = 40
         self.epilog = None
         self.description = None
         self.prog = None
@@ -265,6 +301,20 @@ class _ParserCompact(_LoggerObject):
             cmdhelp = '%s'%(cmd.helpinfo)
         return cmdname,cmdhelp
 
+    def __get_indent_string(self,s,indentsize,maxsize):
+        rets = ''
+        curs = ' ' * indentsize
+        for c in s:
+            if (c == ' ' or c == '\t') and len(curs) >= maxsize:
+                rets += curs + '\n'
+                curs = ' ' * indentsize
+                continue
+            curs += c
+        if curs.strip(' \t') != '':
+            rets += curs + '\n'
+        curs = ''
+        return rets
+
 
     def get_help_info(self,helpsize=None,parentcmds=[]):
         if helpsize is None:
@@ -316,12 +366,40 @@ class _ParserCompact(_LoggerObject):
                 if opt.type == 'args' :
                     continue
                 optname,optexpr,opthelp = self.__get_opt_help(opt)
-                s += '\t%-*s %-*s %-*s\n'%(helpsize.optnamesize,optname,helpsize.optexprsize,optexpr,helpsize.opthelpsize,opthelp)
+                curs = ''
+                curs += ' ' * 4 
+                curs += '%-*s %-*s %-*s\n'%(helpsize.optnamesize,optname,helpsize.optexprsize,optexpr,helpsize.opthelpsize,opthelp)
+                if len(curs) < self.screenwidth :
+                    s += curs
+                else:
+                    curs = ''
+                    curs += ' ' * 4
+                    curs += '%-*s %-*s'%(helpsize.optnamesize,optname,helpsize.optexprsize,optexpr)
+                    s += curs + '\n'
+                    if self.screenwidth >= 60:
+                        s += self.__get_indent_string(opthelp,20, self.screenwidth)
+                    else:
+                        s += self.__get_indent_string(opthelp,15,self.screenwidth)
+
         if len(self.subcommands)>0:
             s += '[SUBCOMMANDS]\n'
             for cmd in self.subcommands:
                 cmdname,cmdhelp = self.__get_cmd_help(cmd)
-                s += '\t%-*s %-*s\n'%(helpsize.cmdnamesize,cmdname,helpsize.cmdhelpsize,cmdhelp)
+                curs = ''
+                curs += ' ' * 4
+                curs += '%-*s %-*s'%(helpsize.cmdnamesize,cmdname,helpsize.cmdhelpsize,cmdhelp)
+                if len(curs) < self.screenwidth:
+                    s += curs + '\n'
+                else:
+                    curs = ''
+                    curs += ' ' * 4
+                    curs += '%-*s'%(helpsize.cmdnamesize,cmdname)
+                    s += curs + '\n'
+                    if self.screenwidth >= 60:                        
+                        s += self.__get_indent_string(cmdhelp,20, self.screenwidth)
+                    else:
+                        s += self.__get_indent_string(cmdhelp,15,self.screenwidth)
+
         if self.epilog is not None:
             s += '\n%s\n'%(self.epilog)
         return s
@@ -579,35 +657,6 @@ def set_attr_args(self,args,prefix):
     return
 
 
-class ExtArgsOptions(object):
-    def __init__(self):
-        self.__obj = dict()
-        self.__obj['errorhandler'] = 'exit'
-        self.__obj['prog'] = sys.argv[0]
-        self.__logger = _LoggerObject()
-        return
-
-    def __setattr__(self,key,val):
-        if not key.startswith('_'):
-            #self.__logger.info('%s=%s'%(key,val),2)
-            self.__obj[key] = val
-            return
-        self.__dict__[key] = val
-        return
-
-    def __getattr__(self,key):
-        if not key.startswith('_'):
-            if key in self.__obj.keys():
-                return self.__obj[key]
-            return None
-        return self.__dict__[key]
-
-    def __str__(self):
-        s = '{'
-        for k in self.__obj.keys():
-            s += '%s=%s;'%(k,self.__obj[k])
-        s += '}'
-        return s
 
 
 class ExtArgsParse(_LoggerObject):
