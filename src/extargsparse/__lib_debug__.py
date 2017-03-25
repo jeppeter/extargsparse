@@ -838,6 +838,42 @@ def set_attr_args(self,args,prefix):
             setattr(self,p,getattr(args,p))
     return
 
+class _OptCheck(object):
+    def __reset(self):
+        self.__longopt = []
+        self.__shortopt = []
+        self.__varname = []
+        return
+    def __init__(self):
+        self.__reset()
+        return
+
+    def copy(self,other):
+        if not issubclass(other.__class__,_OptCheck):
+            raise Exception('other not _OptCheck function')
+        self.__reset()
+        self.__longopt.extend(other.__longopt)
+        self.__shortopt.extend(other.__shortopt)
+        self.__varname.extend(other.__varname)
+        return
+
+    def add_and_check(self,typename,value):
+        if typename == 'longopt':
+            if value in self.__longopt:
+                return False
+            self.__longopt.append(value)
+            return True
+        elif typename == 'shortopt':
+            if value in self.__shortopt:
+                return False
+            self.__shortopt.append(value)
+            return True
+        elif typename == 'varname':
+            if value in self.__varname:
+                return False
+            self.__varname.append(value)
+            return True
+        return False
 
 
 
@@ -1075,6 +1111,7 @@ class ExtArgsParse(_LoggerObject):
         self.__helplong = 'help'
         self.__helpshort = 'h'
         self.__jsonlong = 'json'
+        self.__cmdprefixadded = True
         if self.__options.longprefix is not None:
             self.__longprefix = self.__options.longprefix
         if self.__options.shortprefix is not None:
@@ -1097,6 +1134,9 @@ class ExtArgsParse(_LoggerObject):
 
         if self.__options.nojsonoption is not None:
             self.__nojsonoption = self.__options.nojsonoption
+
+        if self.__options.cmdprefixadded is not None:
+            self.__cmdprefixadded = self.__options.cmdprefixadded
 
         self.__load_command_map = {
             'string' : self.__load_command_line_base,
@@ -1242,10 +1282,14 @@ class ExtArgsParse(_LoggerObject):
         self.info('nextparser %s'%(self.format_string(nextparser)))
         self.info('keycls %s'%(keycls))
         # this would add prefix
-        newprefix = prefix
-        if len(newprefix) > 0:
-            newprefix += '_'
-        newprefix += keycls.cmdname
+        if self.__cmdprefixadded:
+            newprefix = prefix
+            if len(newprefix) > 0:
+                newprefix += '_'
+            newprefix += keycls.cmdname
+        else:
+            # it will just not add the prefix
+            newprefix = ''
         self.__load_command_line_inner(newprefix,keycls.value,nextparser)
         nextparser.pop()
         return True
@@ -1472,25 +1516,37 @@ class ExtArgsParse(_LoggerObject):
         args = self.__set_environ_value_inner(args,'',self.__maincmd)
         return args
 
-    def __check_varname_inner(self,paths=None):
+    def __check_varname_inner(self,paths=None,optcheck=None):
+        if optcheck is None:
+            optcheck = _OptCheck()
         parentpaths = [self.__maincmd]
         if paths is not None:
             parentpaths = paths
         for chld in parentpaths[-1].subcommands:
             curpaths = parentpaths
             curpaths.append(chld)
-            self.__check_varname_inner(curpaths)
+            copyoptcheck = _OptCheck()
+            copyoptcheck.copy(optcheck)
+            self.__check_varname_inner(curpaths,copyoptcheck)
             curpaths.pop()
 
         for opt in parentpaths[-1].cmdopts:
             if opt.isflag:
                 if opt.type == 'help' or opt.type == 'args':
                     continue
-                if opt.varname in self.__varnames:
+                bval = optcheck.add_and_check('varname',opt.varname)
+                if not bval:
                     msg = '%s is already in the check list'%(opt.varname)
                     self.error_msg(msg)
-                self.__varnames.append(opt.varname)
-                self.__varcmds.append(parentpaths[-1])
+                bval = optcheck.add_and_check('longopt',opt.longopt)
+                if not bval:
+                    msg = '%s is already in the check list'%(opt.longopt)
+                    self.error_msg(msg)
+                if opt.shortopt is not None:
+                    bval = optcheck.add_and_check('shortopt',opt.shortopt)
+                    if not bval:
+                        msg = '%s is already in the check list'%(opt.longopt)
+                        self.error_msg(msg)
         return
 
     def __set_command_line_self_args_inner(self,paths=None):
@@ -1523,11 +1579,7 @@ class ExtArgsParse(_LoggerObject):
         if self.__ended != 0:
             return
         self.__set_command_line_self_args_inner(paths)
-        self.__varnames = []
-        self.__varcmds = []
         self.__check_varname_inner()
-        self.__varcmds = []
-        self.__varnames = []
         self.__ended = 1
         return
 
@@ -4283,6 +4335,131 @@ class debug_extargs_test_case(unittest.TestCase):
                 os.remove(jsonfile)
             jsonfile = None
         return
+
+    def test_A053(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            },
+            "rdep" : {
+                "list|l" : [],
+                "string|s" : "s_rdep",
+                "$" : "+"
+            }
+        }
+        '''
+        optstr='''
+        {
+            "cmdprefixadded" : false
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring","port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSON'] = jsonfile
+            os.environ['DEP_JSON'] = depjsonfile
+            options = ExtArgsOptions(optstr)
+            parser = ExtArgsParse(options,priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['EXTARGS_STRING'] = depstrval
+            os.environ['EXTARGS_LIST'] = depliststr
+
+            sio = StringIO.StringIO()
+            parser.print_help(sio,"dep")
+            # now it will give no help
+            logging.info('help (%s)'%(sio.getvalue()))
+            helpexpr = re.compile('^\s+--help.*')
+            jsonexpr = re.compile('^\s+--dep-json.*')
+            listexpr = re.compile('^\s+--list.*')
+            stringexpr = re.compile('^\s+--string.*')
+            helpfind = False
+            jsonfind = False
+            listfind = False
+            stringfind = False
+            sarr = self.__split_strings(sio.getvalue())
+            for l in sarr:
+                if helpexpr.match(l):
+                    helpfind = True
+                if jsonexpr.match(l):
+                    jsonfind = True
+                if listexpr.match(l):
+                    listfind = True
+                if stringexpr.match(l):
+                    stringfind = True
+            self.assertEqual(helpfind,True)
+            self.assertEqual(jsonfind,True)
+            self.assertEqual(listfind,True)
+            self.assertEqual(stringfind,True)
+
+            sio = StringIO.StringIO()
+            parser.print_help(sio,"rdep")
+            # now it will give no help
+            logging.info('help (%s)'%(sio.getvalue()))
+            helpexpr = re.compile('^\s+--help.*')
+            jsonexpr = re.compile('^\s+--rdep-json.*')
+            listexpr = re.compile('^\s+--list.*')
+            stringexpr = re.compile('^\s+--string.*')
+            helpfind = False
+            jsonfind = False
+            listfind = False
+            stringfind = False
+            sarr = self.__split_strings(sio.getvalue())
+            for l in sarr:
+                if helpexpr.match(l):
+                    helpfind = True
+                if jsonexpr.match(l):
+                    jsonfind = True
+                if listexpr.match(l):
+                    listfind = True
+                if stringexpr.match(l):
+                    stringfind = True
+            self.assertEqual(helpfind,True)
+            self.assertEqual(jsonfind,True)
+            self.assertEqual(listfind,True)
+            self.assertEqual(stringfind,True)
+
+            
+            args = parser.parse_command_line(['-p','9000','dep','--string','ee','ww'])
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port, 9000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.list,["jsonval1","jsonval2"])
+            self.assertEqual(args.string,'ee')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+        return
+
 
 ##importdebugstart
 

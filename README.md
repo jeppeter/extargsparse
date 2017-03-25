@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Mar 25th 2017 Release 0.9.0 to make no help and no json set and cmdprefixadded option set
 * Mar 24th 2017 Release 0.8.8 to extend new functions for parse options
 * Mar 15th 2017 Release 0.8.2 to fixup bug when call not type equal
 * Feb 20th 2017 Release 0.8.0 to fixup bug in the set_attr_args functions
@@ -604,6 +605,85 @@ if __name__ == '__main__':
 [rdep] subcmds []
 ```
 
+### no default help and no json to specify
+> if you want no help or json to in the options ,just use option with 
+> nohelpoption or nojsonoption
+
+### no cmd with prefix 
+> if you want no command prefix to add in the command ,please use option with
+> cmdprefixadded = False give example
+
+```python
+#! /usr/bin/env python
+
+
+
+import extargsparse
+
+
+
+
+def main():
+  commandline='''
+  {
+    "verbose|v" : "+",
+    "dep" : {
+      "list|l" : [],
+      "string|s" : "s_dep",
+      "$" : "*"
+    },
+    "rdep" : {
+      "list|l" : [],
+      "string|s" : "s_rdep",
+      "$" : "+"
+    }
+  }
+  '''
+  optstr = '''
+  {
+    "nojsonoption" : true,
+    "cmdprefixadded" : false
+  }
+  '''
+  options = extargsparse.ExtArgsOptions(optstr)
+  parser = extargsparse.ExtArgsParse(options)
+  parser.load_command_line_string(commandline)
+  args = parser.parse_command_line()
+  print('verbose [%d]'%(args.verbose))
+  print('subcommand [%s]'%(args.subcommand))
+  print('list [%s]'%(args.list))
+  print('string [%s]'%(args.string))
+  print('subnargs [%s]'%(args.subnargs))
+  return
+
+if __name__ == '__main__':
+  main()
+```
+
+> give command
+```shell
+python noprefix.py rdep -h
+```
+
+```shell
+noprefix.py  rdep [OPTIONS] args...
+[OPTIONS]
+    --help|-h            to display this help information
+    --string|-s  string  string set default(s_rdep)
+    --list|-l    list    list set default([])
+```
+
+> give 
+```shell
+python  noprefix.py  rdep --list cc --list bb 222
+```
+```shell
+verbose [0]
+subcommand [rdep]
+list [['cc', 'bb']]
+string [s_dep]
+subnargs [['222']]
+```
 
 ## Rules
 
