@@ -1070,6 +1070,8 @@ class ExtArgsParse(_LoggerObject):
         self.__ended = 0
         self.__longprefix = '--'
         self.__shortprefix = '-'
+        self.__nohelpoption = False
+        self.__nojsonoption = False
         self.__helplong = 'help'
         self.__helpshort = 'h'
         self.__jsonlong = 'json'
@@ -1089,6 +1091,12 @@ class ExtArgsParse(_LoggerObject):
 
         if self.__options.jsonlong is not None and len(self.__options.jsonlong) > 1:
             self.__jsonlong = self.__options.jsonlong
+
+        if self.__options.nohelpoption is not None:
+            self.__nohelpoption = self.__options.nohelpoption
+
+        if self.__options.nojsonoption is not None:
+            self.__nojsonoption = self.__options.nojsonoption
 
         self.__load_command_map = {
             'string' : self.__load_command_line_base,
@@ -1250,9 +1258,11 @@ class ExtArgsParse(_LoggerObject):
         return True
 
     def __load_command_line_inner(self,prefix,d,curparser=None):
-        self.__load_command_line_json_added(curparser)
+        if not self.__nojsonoption:
+            self.__load_command_line_json_added(curparser)
         # to add parser
-        self.__load_command_line_help_added(curparser)
+        if not self.__nohelpoption:
+            self.__load_command_line_help_added(curparser)
         parentpath = [self.__maincmd]
         if curparser is not None:
             parentpath = curparser
@@ -1355,6 +1365,7 @@ class ExtArgsParse(_LoggerObject):
 
 
     def __load_jsonfile(self,args,cmdname,jsonfile):
+        assert( not self.__nojsonoption)
         assert(jsonfile is not None)
         prefix = ''
         if cmdname is not None :
@@ -1524,7 +1535,8 @@ class ExtArgsParse(_LoggerObject):
         # now we should get the 
         # first to test all the json file for special command
         subcmdname = getattr(args,'subcommand',None)
-        if subcmdname is not None:
+        # we do not get the json ok
+        if subcmdname is not None and not self.__nojsonoption:
             cmds = self.__find_commands_in_path(subcmdname)
             idx = len(cmds)
             while idx >= 2:
@@ -1540,7 +1552,8 @@ class ExtArgsParse(_LoggerObject):
 
     def __parse_command_json_set(self,args):
         # to get the total command
-        if args.json is not None:
+        jsonfile = getattr(args,'%s'%(self.__jsonlong),None)
+        if jsonfile is not None and not self.__nojsonoption:
             jsonfile = args.json
             args = self.__load_jsonfile(args,'',jsonfile)
         return args
@@ -1553,7 +1566,7 @@ class ExtArgsParse(_LoggerObject):
     def __parse_env_subcommand_json_set(self,args):
         # now to check for the environment as the put file
         subcmdname = getattr(args,'subcommand',None)
-        if subcmdname is not None:
+        if subcmdname is not None and not self.__nojsonoption:
             cmds = self.__find_commands_in_path(subcmdname)
             idx = len(cmds)
             while idx >= 2:
@@ -1576,7 +1589,7 @@ class ExtArgsParse(_LoggerObject):
         jsonenv = jsonenv.replace('-','_')
         jsonenv = jsonenv.replace('.','_')
         jsonfile = os.getenv(jsonenv,None)
-        if jsonfile is not None:
+        if jsonfile is not None and not self.__nojsonoption:
             args = self.__load_jsonfile(args,'',jsonfile)
         return args
 
@@ -4186,6 +4199,89 @@ class debug_extargs_test_case(unittest.TestCase):
                 # we do not set any 
                 matched = 1
         self.assertEqual(matched ,1)
+        return
+
+
+    def test_A052(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        optstr='''
+        {
+            "nojsonoption" : true,
+            "nohelpoption" : true
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
+            os.environ['DEP_JSONFILE'] = depjsonfile
+            options = ExtArgsOptions(optstr)
+            parser = ExtArgsParse(options,priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+
+            sio = StringIO.StringIO()
+            parser.print_help(sio)
+            # now it will give no help
+            logging.info('help (%s)'%(sio.getvalue()))
+            helpexpr = re.compile('^\s+--help.*')
+            jsonexpr = re.compile('^\s+--json.*')
+            helpfind = False
+            jsonfind = False
+            sarr = self.__split_strings(sio.getvalue())
+            for l in sarr:
+                if helpexpr.match(l):
+                    helpfind = True
+                if jsonexpr.match(l):
+                    jsonfind = True
+            self.assertEqual(helpfind,False)
+            self.assertEqual(jsonfind,False)
+            
+            args = parser.parse_command_line(['-p','9000','dep','--dep-string','ee','ww'])
+            self.assertEqual(args.verbose,0)
+            self.assertEqual(args.port, 9000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.dep_list,["depenv1","depenv2"])
+            self.assertEqual(args.dep_string,'ee')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
         return
 
 ##importdebugstart
