@@ -33,35 +33,6 @@ ENV_COMMAND_JSON_SET = 60
 DEFAULT_SET = 70
 
 
-class ExtArgsOptions(object):
-    def __init__(self):
-        self.__obj = dict()
-        self.__obj['errorhandler'] = 'exit'
-        self.__obj['prog'] = sys.argv[0]
-        self.__logger = _LoggerObject()
-        return
-
-    def __setattr__(self,key,val):
-        if not key.startswith('_'):
-            #self.__logger.info('%s=%s'%(key,val),2)
-            self.__obj[key] = val
-            return
-        self.__dict__[key] = val
-        return
-
-    def __getattr__(self,key):
-        if not key.startswith('_'):
-            if key in self.__obj.keys():
-                return self.__obj[key]
-            return None
-        return self.__dict__[key]
-
-    def __str__(self):
-        s = '{'
-        for k in self.__obj.keys():
-            s += '%s=%s;'%(k,self.__obj[k])
-        s += '}'
-        return s
 
 
 class _LoggerObject(object):
@@ -175,6 +146,74 @@ class _LoggerObject(object):
         self.error('can not call %s'%(funcname))
         return None
 
+class ExtArgsOptions(_LoggerObject):
+    def __setting_object(self,setting):
+        for k in setting.keys():
+            if k.startswith('_'):
+                continue
+            setattr(self,k,setting[k])
+        return
+
+    def __setting_string(self,setting):
+        try:
+            d = json.loads(setting)
+            d = keyparse.Utf8Encode(d).get_val()
+            self.__setting_object(d)
+        except:
+            pass
+        return
+
+    def __init__(self,setting=None):
+        super(ExtArgsOptions,self).__init__()
+        self.__obj = dict()
+        self.__obj['errorhandler'] = 'exit'
+        self.__obj['prog'] = sys.argv[0]
+        self.__access = dict()
+        self.__access['errorhandler'] = True
+        self.__access['prog'] = True
+        self.__logger = _LoggerObject()
+        if setting is not None:
+            if isinstance(setting,str):
+                self.__setting_string(setting)
+            elif isinstance(setting,dict):
+                self.__setting_object(setting)
+        return
+
+    def __setattr__(self,key,val):
+        if not key.startswith('_'):
+            self.info('%s=%s'%(key,val),2)
+            self.__obj[key] = val
+            self.__access[key] = True
+            return
+        self.__dict__[key] = val
+        return
+
+    def __getattr__(self,key):
+        if not key.startswith('_'):
+            if key in self.__obj.keys():
+                return self.__obj[key]
+            return None
+        return self.__dict__[key]
+
+    def __format(self):
+        s = '{'
+        for k in self.__obj.keys():
+            s += '%s=%s;'%(k,self.__obj[k])
+        s += '}'
+        return s
+
+    def __str__(self):
+        return self.__format()
+
+    def __repr__(self):
+        return self.__format()
+
+    def is_accessed(self,k):
+        if k.startswith('_'):
+            return False
+        if k not in self.__access.keys():
+            return False
+        return self.__access[k]
 
 
 class _HelpSize(_LoggerObject):
@@ -1013,7 +1052,9 @@ class ExtArgsParse(_LoggerObject):
 
     def __init__(self,options=None,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
         super(ExtArgsParse,self).__init__()
+        self.info('options (%s)'%(options))
         if options is None:
+            self.info('options None set default')
             options = ExtArgsOptions()
         self.__options = options
         self.__maincmd = _ParserCompact(None,options)
@@ -1040,8 +1081,11 @@ class ExtArgsParse(_LoggerObject):
         if self.__options.helplong is not None and len(self.__options.helplong) > 1:
             self.__helplong = self.__options.helplong
 
+        self.info('helpshort [%s] [%s]'%(self.__options.helpshort,self.__options.is_accessed('helpshort')))
         if self.__options.helpshort is not None and len(self.__options.helpshort) == 1:
             self.__helpshort = self.__options.helpshort
+        elif self.__options.is_accessed('helpshort') and self.__options.helpshort is None:
+            self.__helpshort = None
 
         if self.__options.jsonlong is not None and len(self.__options.jsonlong) > 1:
             self.__jsonlong = self.__options.jsonlong
@@ -4097,6 +4141,44 @@ class debug_extargs_test_case(unittest.TestCase):
         sarr = self.__split_strings(sio.getvalue())
         overlength = 0
         matchexpr = re.compile('^\s+\+\+usage|\+\?\s+to display.*')
+        # we must have to omit the first line
+        matched = 0
+        for c in sarr:
+            if matchexpr.match(c):
+                # we do not set any 
+                matched = 1
+        self.assertEqual(matched ,1)
+        return
+
+    def test_A051(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        optionstr = '''
+        {
+            "helplong" : "usage",
+            "helpshort" : null,
+            "longprefix" : "++",
+            "shortprefix" : "+"
+        }
+        '''
+        options = ExtArgsOptions(optionstr)
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        logging.info('get value (%s)'%(sio.getvalue()))
+        sarr = self.__split_strings(sio.getvalue())
+        overlength = 0
+        matchexpr = re.compile('^\s+\+\+usage\s+to display.*')
         # we must have to omit the first line
         matched = 0
         for c in sarr:
