@@ -1086,9 +1086,11 @@ class ExtArgsParse(_LoggerObject):
         return self.__load_command_line_help(keycls,curparser)
 
 
-    def __init__(self,options=None,priority=[SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]):
+    def __init__(self,options=None,priority=None):
         super(ExtArgsParse,self).__init__()
         self.info('options (%s)'%(options))
+        if priority is None:
+            priority = [SUB_COMMAND_JSON_SET,COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET,ENV_COMMAND_JSON_SET]
         if options is None:
             self.info('options None set default')
             options = ExtArgsOptions()
@@ -1606,7 +1608,6 @@ class ExtArgsParse(_LoggerObject):
         # to get the total command
         jsonfile = getattr(args,'%s'%(self.__jsonlong),None)
         if jsonfile is not None and not self.__nojsonoption:
-            jsonfile = args.json
             args = self.__load_jsonfile(args,'',jsonfile)
         return args
 
@@ -1772,7 +1773,7 @@ class ExtArgsParse(_LoggerObject):
             if args.subcommand is not None:
                 cmds = self.__find_commands_in_path(args.subcommand)
                 funcname = cmds[-1].keycls.function
-                if funcname is not None:
+                if funcname is not None and (len(self.__output_mode) == 0 or self.__output_mode[-1] == ''):
                     self.call_func(funcname,args,Context)
                     return args
         finally:
@@ -4450,6 +4451,71 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.subcommand,'dep')
             self.assertEqual(args.list,["jsonval1","jsonval2"])
             self.assertEqual(args.string,'ee')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+        return
+
+
+    def test_A054(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l" : [],
+                "string|s" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        optstr='''
+        {
+            "jsonlong" : "jsonfile"
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
+            os.environ['DEP_JSONFILE'] = depjsonfile
+            options = ExtArgsOptions(optstr)
+            parser = ExtArgsParse(options,priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+
+            args = parser.parse_command_line(['--jsonfile',jsonfile,'dep','ww'])
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port, 6000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.dep_list,["jsonval1","jsonval2"])
+            self.assertEqual(args.dep_string,'jsonstring')
             self.assertEqual(args.subnargs,['ww'])
         finally:
             if depjsonfile is not None:

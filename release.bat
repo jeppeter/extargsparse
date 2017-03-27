@@ -7,6 +7,8 @@ if -%PYTHON%- == -- (
 	set PYTHON=python
 )
 
+echo "PYTHON [%PYTHON%]"
+
 del /Q /F %script_dir%extargsparse\__lib__.py.touched 2>NUL
 del /Q /F %script_dir%extargsparse\__key__.py.touched 2>NUL
 del /Q /F %script_dir%extargsparse\__init__.py.touched 2>NUL
@@ -85,5 +87,6 @@ if -%res%- == -0- (
 	exit /b 3
 )
 
+copy /Y %script_dir%README.md %script_dir%extargsparse\README
 
 echo on
