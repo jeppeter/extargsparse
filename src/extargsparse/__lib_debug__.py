@@ -3591,14 +3591,8 @@ class debug_extargs_test_case(unittest.TestCase):
         oldstderr = sys.stderr
         uname0 = platform.uname()[0].lower()
         try:
-            if uname0 == 'linux' or uname0.startswith('cygwin'):
-                sys.stdout = open('/dev/null','w')
-                sys.stderr = open('/dev/null','w')
-            elif uname0 == 'windows':
-                sys.stdout = open('NUL','w')
-                sys.stderr = open('NUL','w')
-            else:
-                raise Exception('can not find platform %s'%(uname0))
+            sys.stdout = open(os.devnull,'w')
+            sys.stderr = open(os.devnull,'w')
             args =parser.parse_command_line(['--help'])
         except SystemExit:
             ok = 1
