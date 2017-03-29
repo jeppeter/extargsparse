@@ -827,6 +827,9 @@ class NameSpaceEx(object):
             return True
         return False
 
+    def is_accessed(self,name):
+        return self.__has_accessed(name)
+
     def get_keys(self):
         return self.__obj.keys()
 
@@ -1385,7 +1388,9 @@ class ExtArgsParse(_LoggerObject):
                         if str(keyparse.TypeClass(value)) != str(keyparse.TypeClass(opt.value)):
                             self.warn('%s  type (%s) as default value type (%s)'%(key,str(keyparse.TypeClass(value)),str(keyparse.TypeClass(opt.value))))
                         else:
-                            self.info('set (%s)=(%s)'%(key,value))
+                            # here we do not set the args directly ,because we should make sure this will give
+                            # call back options ,so we do this by the calling
+
                             setattr(args,key,value)
                     return args
         return args
@@ -1458,7 +1463,7 @@ class ExtArgsParse(_LoggerObject):
             if keycls.isflag and keycls.type != 'prefix' and keycls.type != 'args' and keycls.type != 'help':
                 optdest = keycls.optdest
                 oldopt = optdest
-                if getattr(args,oldopt,None) is not None:
+                if args.is_accessed(oldopt):
                     # have set ,so we do not set it
                     continue
                 optdest = optdest.upper()
