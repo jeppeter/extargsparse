@@ -981,6 +981,15 @@ class ExtArgsParse(_LoggerObject):
     def __command_action(self,args,validx,keycls,params):
         return 0
 
+
+    def __json_value_base(self,args,keycls,value):
+        setattr(args,keycls.optdest,value)
+        return
+
+    def __json_value_error(self,args,keycls,value):
+        raise Exception('error set json value')
+        return
+
     def __get_full_trace_back(self,trback,tabs=1,cnt=0):
         s = ''
         frm = getattr(trback,'tb_frame',None)
@@ -1197,6 +1206,26 @@ class ExtArgsParse(_LoggerObject):
             ENV_SUB_COMMAND_JSON_SET : self.__parse_env_subcommand_json_set,
             ENV_COMMAND_JSON_SET : self.__parse_env_command_json_set
         }
+        self.__set_json_value = {
+            'string' : self.__json_value_base,
+            'unicode' : self.__json_value_base,
+            'bool' : self.__json_value_base,
+            'int' : self.__json_value_base,
+            'long' : self.__json_value_base,
+            'list' : self.__json_value_base,
+            'count' : self.__json_value_base,
+            'jsonfile' : self.__json_value_base,
+            'float' : self.__json_value_base,
+            'command' : self.__json_value_error,
+            'help' : self.__json_value_error
+        }
+        return
+
+    def __call_json_value(self,args,keycls,value):
+        if keycls.attr is not None and keycls.attr.jsonfunc is not None:
+            self.call_func(keycls.attr.jsonfunc,args,keycls,value)
+            return
+        self.__set_json_value[keycls.type](args,keycls,value)
         return
 
     def __format_cmdname_path(self,curparser=None):
@@ -1414,8 +1443,8 @@ class ExtArgsParse(_LoggerObject):
                         else:
                             # here we do not set the args directly ,because we should make sure this will give
                             # call back options ,so we do this by the calling
-
-                            setattr(args,key,value)
+                            self.__call_json_value(args,opt,value)
+                            #setattr(args,key,value)
                     return args
         return args
 
@@ -1499,21 +1528,25 @@ class ExtArgsParse(_LoggerObject):
                     # to check the type
                     val = keyparse.Utf8Encode(val).get_val()
                     if keycls.type == 'string' or keycls.type == 'jsonfile':
-                        setattr(args,oldopt,val)
+                        value = val
+                        self.__call_json_value(args,keycls,value)
                     elif keycls.type == 'bool':                     
+                        value = False
                         if val.lower() == 'true':
-                            setattr(args,oldopt,True)
+                            value = True
                         elif val.lower() == 'false':
-                            setattr(args,oldopt,False)
+                            value = False
+                        self.__call_json_value(args,keycls,value)
                     elif keycls.type == 'list':
                         try:
                             lval = eval(val)
                             lval = keyparse.Utf8Encode(lval).get_val()
                             if not isinstance(lval,list):
                                 raise Exception('(%s) environ(%s) not valid'%(optdest,val))
-                            setattr(args,oldopt,lval)
+                            value = lval
+                            self.__call_json_value(args,keycls,value)
                         except:
-                            self.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.warn('can not set (%s) for %s = %s\n%s'%(optdest,oldopt,val,self.__get_except_info()))
                     elif keycls.type == 'int' or keycls.type == 'count':
                         try:
                             val = val.lower()
@@ -1525,15 +1558,17 @@ class ExtArgsParse(_LoggerObject):
                                 val = val[1:]
                                 base = 16
                             lval = int(val,base)
-                            setattr(args,oldopt,lval)
+                            value = lval
+                            self.__call_json_value(args,keycls,value)
                         except:
-                            self.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.warn('can not set (%s) for %s = %s\n%s'%(optdest,oldopt,val,self.__get_except_info()))
                     elif keycls.type == 'float':
                         try:
                             lval = float(val)
-                            setattr(args,oldopt,lval)
+                            value = lval
+                            self.__call_json_value(args,keycls,value)
                         except:
-                            self.warn('can not set (%s) for %s = %s'%(optdest,oldopt,val))
+                            self.warn('can not set (%s) for %s = %s\n%s'%(optdest,oldopt,val,self.__get_except_info()))
                     else:
                         msg = 'internal error when (%s) type(%s)'%(keycls.optdest,keycls.type)
                         self.error_msg(msg)
@@ -1913,6 +1948,31 @@ def debug_set_2_args(args,validx,keycls,params):
     val.append(params[(validx + 1)])
     setattr(args,keycls.optdest,val)
     return 2
+
+def debug_2_jsonfunc(args,keycls,value):
+    if not isinstance(value,list):
+        raise Exception('not list value')
+    if (len(value) % 2) != 0:
+        raise Exception('not even sized')
+    setvalue = []
+    i = 0
+    while i < len(value):
+        setvalue.append(value[i])
+        i += 2
+    setattr(args,keycls.optdest,setvalue)
+    return
+
+def debug_upper_jsonfunc(args,keycls,value):
+    valid = False
+    if isinstance(value,str) or (sys.version[0] == '2' and isinstance(value,unicode)) or value is None:
+        valid = True
+    if not valid :
+        raise Exception('not valid string')
+    setvalue = None
+    if value is not None:
+        setvalue = value.upper()
+    setattr(args,keycls.optdest,setvalue)
+    return
 
 def debug_opthelp_set(keycls):
     return 'opthelp function set [%s] default value (%s)'%(keycls.optdest,keycls.value)
@@ -4538,6 +4598,71 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.subcommand,'dep')
             self.assertEqual(args.dep_list,["jsonval1","jsonval2"])
             self.assertEqual(args.dep_string,'jsonstring')
+            self.assertEqual(args.subnargs,['ww'])
+        finally:
+            if depjsonfile is not None:
+                os.remove(depjsonfile)
+            depjsonfile = None
+            if jsonfile is not None:
+                os.remove(jsonfile)
+            jsonfile = None
+        return
+
+
+    def test_A055(self):
+        commandline= '''
+        {
+            "verbose|v" : "+",
+            "$port|p" : {
+                "value" : 3000,
+                "type" : "int",
+                "nargs" : 1 , 
+                "helpinfo" : "port to connect"
+            },
+            "dep" : {
+                "list|l!jsonfunc=debug_2_jsonfunc!" : [],
+                "string|s!jsonfunc=debug_upper_jsonfunc!" : "s_var",
+                "$" : "+"
+            }
+        }
+        '''
+        optstr='''
+        {
+            "jsonlong" : "jsonfile"
+        }
+        '''
+        jsonfile = None
+        depjsonfile = None
+        try:
+            depstrval = 'newval'
+            depliststr = '["depenv1","depenv2"]'
+            deplistval = eval(depliststr)
+            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+            fd = -1
+            with open(jsonfile,'w+') as f:
+                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            with open(depjsonfile,'w+') as f:
+                f.write('{"list":["depjson1","depjson2"]}\n')
+
+
+            os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
+            os.environ['DEP_JSONFILE'] = depjsonfile
+            options = ExtArgsOptions(optstr)
+            parser = ExtArgsParse(options,priority=[ENV_COMMAND_JSON_SET,ENVIRONMENT_SET,ENV_SUB_COMMAND_JSON_SET])
+            parser.load_command_line_string(commandline)
+            os.environ['DEP_STRING'] = depstrval
+            os.environ['DEP_LIST'] = depliststr
+
+            args = parser.parse_command_line(['--jsonfile',jsonfile,'dep','ww'])
+            self.assertEqual(args.verbose,3)
+            self.assertEqual(args.port, 6000)
+            self.assertEqual(args.subcommand,'dep')
+            self.assertEqual(args.dep_list,["jsonval1"])
+            self.assertEqual(args.dep_string,'JSONSTRING')
             self.assertEqual(args.subnargs,['ww'])
         finally:
             if depjsonfile is not None:

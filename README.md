@@ -2,7 +2,7 @@
 > python command package for json string set
 
 ### Release History
-* Mar 30th 2017 Release 0.9.6 to make the longprefix and shortprefix output
+* Mar 30th 2017 Release 0.9.8 to make the longprefix and shortprefix output and will give the jsonfunc callback
 * Mar 25th 2017 Release 0.9.0 to make no help and no json set and cmdprefixadded option set
 * Mar 24th 2017 Release 0.8.8 to extend new functions for parse options
 * Mar 15th 2017 Release 0.8.2 to fixup bug when call not type equal
@@ -505,8 +505,13 @@ args (['rr'])
        validx is the value index in the params
        keycls is the option object you can use optdest for the destination
        params is the command line all in
-* 
-
+* jsonfunc
+  ** json value set function for opt
+     like
+     def json_opt(args,keycls,value):
+  ** args is the return value from the parse_command_line
+     keycls is the options object you can use optdest for destination
+     value is the value of json
 
 
 ### extension get example
