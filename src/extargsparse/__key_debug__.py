@@ -147,7 +147,7 @@ class ExtKeyParse(object):
     flagspecial = ['value','prefix']
     flagwords = ['flagname','helpinfo','shortflag','nargs','varname']
     cmdwords = ['cmdname','function','helpinfo']
-    otherwords = ['origkey','iscmd','isflag','type','attr']
+    otherwords = ['origkey','iscmd','isflag','type','attr','longprefix','shortprefix']
     formwords = ['longopt','shortopt','optdest','needarg']
     def __reset(self):
         self.__value = None
@@ -980,7 +980,10 @@ class debug_key_test_case(unittest.TestCase):
 
     def test_A025(self):
         t = TypeClass(u'*')
-        self.assertEqual(str(t),'unicode')
+        if sys.version[0] == '2':
+            self.assertEqual(str(t),'unicode')
+        else:
+            self.assertEqual(str(t),'string')
         return
 
     def test_A026(self):
@@ -1054,7 +1057,7 @@ class debug_key_test_case(unittest.TestCase):
         self.assertEqual(flags.flagname,'maxval')
         self.assertEqual(flags.shortflag,'m')
         self.assertEqual(flags.prefix,'')
-        self.assertEqual(flags.type,'long')
+        self.assertTrue( flags.type in ['long','int'])
         self.assertEqual(flags.value,0xffffffff)
         self.assertEqual(flags.helpinfo,'max value set ')
         self.assertEqual(flags.nargs,1)
@@ -1266,6 +1269,24 @@ class debug_key_test_case(unittest.TestCase):
         self.assertEqual(flags.shortopt,'+R')
         return
 
+    def test_A044(self):
+        flags = ExtKeyParse('','rollback|R## rollback not set ##',True,False,False,longprefix='++',shortprefix='+')
+        self.assertEqual(flags.flagname,'rollback')
+        self.assertEqual(flags.shortflag,'R')
+        self.assertEqual(flags.prefix,'')
+        self.assertEqual(flags.type,'bool')
+        self.assertEqual(flags.value,True)
+        self.assertEqual(flags.helpinfo,' rollback not set ')
+        self.assertEqual(flags.nargs,0)
+        self.assertEqual(flags.cmdname,None)
+        self.assertEqual(flags.function,None)
+        self.assertEqual(flags.optdest,'rollback')
+        self.assertEqual(flags.varname,'rollback')
+        self.assertEqual(flags.longopt,'++no-rollback')
+        self.assertEqual(flags.shortopt,'+R')
+        self.assertEqual(flags.longprefix,'++')
+        self.assertEqual(flags.shortprefix,'+')
+        return
 
 
 ##importdebugstart

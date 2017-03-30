@@ -142,7 +142,7 @@ def test_handler(args,parser):
 			testargs.append('-v')
 	testargs.extend(args.subnargs)
 	sys.argv[1:] = testargs
-	unittest.main()
+	unittest.main(verbosity=args.verbose,failfast=args.failfast)
 	sys.exit(0)
 	return
 
@@ -161,6 +161,7 @@ def main():
 	commandline_fmt = '''
 		{
 			"verbose|v" : "+",
+			"failfast|f" : false,
 			"release<release_handler>##release file##" : {
 				"output|O" : "%s",
 				"importnames|I" : ["debug_args_function","debug_tcebase","debug_set_2_args","debug_opthelp_set","debug_extargs_test_case","_LoggerObject"],
