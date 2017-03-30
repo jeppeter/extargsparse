@@ -981,6 +981,20 @@ class ExtArgsParse(_LoggerObject):
     def __command_action(self,args,validx,keycls,params):
         return 0
 
+    def __get_full_trace_back(self,trback,tabs=1,cnt=0):
+        s = ''
+        frm = getattr(trback,'tb_frame',None)
+        if frm is not None:
+            code = getattr(frm,'f_code',None)
+            if code is not None:
+                s += ' ' * tabs * 4
+                s += '[%d][%s:%s:%s]\n'%(cnt,code.co_filename,code.co_name,frm.f_lineno)
+                ntrace = getattr(trback,'tb_next',None)
+                if ntrace is not None:
+                    s += self.__get_full_trace_back(ntrace,tabs,cnt+1)
+        return s
+
+
     def error_msg(self,message):
         output = False
         if len(self.__output_mode) > 0:
@@ -1334,12 +1348,20 @@ class ExtArgsParse(_LoggerObject):
         self.__load_command_line_inner('',d,None)
         return
 
+    def __get_except_info(self):
+        trback = sys.exc_info()[2]
+        exceptname = sys.exc_info()[1]
+        rets = ''
+        rets += 'exception %s:\n'%(exceptname)
+        rets +='trace back:\n'
+        rets += self.__get_full_trace_back(trback,1,0)
+        return rets
 
     def load_command_line_string(self,s):
         try:
             d = json.loads(s)
         except:
-            msg = '(%s) not valid json string'%(s)
+            msg = '(%s) not valid json string\n%s'%(s,self.__get_except_info())
             self.error_msg(msg)
         #self.info('d (%s)'%(d))
         self.load_command_line(d)
@@ -1427,7 +1449,7 @@ class ExtArgsParse(_LoggerObject):
         try:
             fp = open(jsonfile,'r+')
         except:
-            msg = 'can not open(%s)'%(jsonfile)
+            msg = 'can not open(%s)\n%s'%(jsonfile,self.__get_except_info())
             self.error_msg(msg)
         try:
             jsonvalue = json.load(fp)
@@ -1437,7 +1459,7 @@ class ExtArgsParse(_LoggerObject):
             if fp is not None:
                 fp.close()
             fp = None
-            msg = 'can not parse (%s)'%(jsonfile)
+            msg = 'can not parse (%s)\n%s'%(jsonfile,self.__get_except_info())
             self.error_msg(msg)
         jsonvalue = keyparse.Utf8Encode(jsonvalue).get_val()
         self.info('load (%s) prefix(%s) value (%s)'%(jsonfile,prefix,repr(jsonvalue)))
@@ -1742,7 +1764,7 @@ class ExtArgsParse(_LoggerObject):
                 parsestate.add_parse_args(nargs)
                 self.info('%s'%(args))
         except Exception as e:
-            self.error_msg('parse (%s) error(%s)'%(params,e))
+            self.error_msg('parse (%s) error(%s)\n%s'%(params,e,self.__get_except_info()))
         return args
 
     def __debug_opts(self,rootcmd=None,tabs=0):
@@ -1770,6 +1792,7 @@ class ExtArgsParse(_LoggerObject):
                 params = sys.argv[1:]
             args = self.parse_args(params)
             for p in self.__load_priority:
+                self.info('set priority [%s]'%(p))
                 args = self.__parse_set_map[p](args)
 
             # set the default value
