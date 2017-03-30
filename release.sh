@@ -60,7 +60,7 @@ wait_file_until "$script_dir/extargsparse/__init__.py.touched"
 $PYTHON $script_dir/test/release/releasetest.py release
 wait_file_until "$script_dir/test/release/release.py.touched"
 
-$PYTHON $script_dir/test/release/release.py test
+$PYTHON $script_dir/test/release/release.py test -f
 _res=$?
 if [ $_res -ne 0 ]
 	then

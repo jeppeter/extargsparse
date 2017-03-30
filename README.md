@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Mar 30th 2017 Release 0.9.6 to make the longprefix and shortprefix output
 * Mar 25th 2017 Release 0.9.0 to make no help and no json set and cmdprefixadded option set
 * Mar 24th 2017 Release 0.8.8 to extend new functions for parse options
 * Mar 15th 2017 Release 0.8.2 to fixup bug when call not type equal
