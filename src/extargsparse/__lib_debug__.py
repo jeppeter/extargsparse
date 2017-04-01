@@ -147,6 +147,25 @@ class _LoggerObject(object):
         return None
 
 class ExtArgsOptions(_LoggerObject):
+    default_values = {
+        'prog' : sys.argv[0],
+        'usage' : '',
+        'description' : '',
+        'epilog' : '',
+        'version' : '0.0.1',
+        'errorhandler' : 'exit',
+        'helphandler' : None,
+        'longprefix' : '--',
+        'shortprefix' : '-',
+        'nohelpoption' : False,
+        'nojsonoption' : False,
+        'helplong' : 'help',
+        'helpshort' : 'h',
+        'jsonlong' : 'json',
+        'cmdprefixadded' : True,
+        'parseall' : True,
+        'screenwidth' : 80
+    }
     def __setting_object(self,setting):
         for k in setting.keys():
             if k.startswith('_'):
@@ -166,12 +185,11 @@ class ExtArgsOptions(_LoggerObject):
     def __init__(self,setting=None):
         super(ExtArgsOptions,self).__init__()
         self.__obj = dict()
-        self.__obj['errorhandler'] = 'exit'
-        self.__obj['prog'] = sys.argv[0]
         self.__access = dict()
-        self.__access['errorhandler'] = True
-        self.__access['prog'] = True
         self.__logger = _LoggerObject()
+        # now to set the default values
+        for k in self.__class__.default_values.keys():
+            self.__setattr__(k,self.__class__.default_values[k])
         if setting is not None:
             if isinstance(setting,str):
                 self.__setting_string(setting)
@@ -305,11 +323,10 @@ class _ParserCompact(_LoggerObject):
             self.cmdopts = []
             self.subcommands = []
             self.helpinfo = None
-            self.callfunction = None
+            self.callfunction = None        
         self.screenwidth = 80
-        if opt is not None and issubclass(opt.__class__,ExtArgsOptions):
-            if opt.screenwidth is not None:
-                self.screenwidth = opt.screenwidth
+        if opt is not None and issubclass(opt.__class__,ExtArgsOptions) and opt.screenwidth is not None:
+            self.screenwidth = opt.screenwidth
         if self.screenwidth < 40:
             self.screenwidth = 40
         self.epilog = None
@@ -494,6 +511,10 @@ class _ParserCompact(_LoggerObject):
 class _ParseState(_LoggerObject):
     def __init__(self,args,maincmd,optattr=None):
         super(_ParseState,self).__init__()
+        if optattr is None:
+            optattr = ExtArgsOptions()
+        elif not issubclass(optattr.__class__,ExtArgsOptions):
+            raise Exception('[%s] not ExtArgsOptions or subclass'%(optattr))
         self.__cmdpaths=[maincmd]
         self.__curidx=0
         self.__curcharidx=-1
@@ -503,22 +524,15 @@ class _ParseState(_LoggerObject):
         self.__validx = -1
         self.__args = args
         self.__ended = 0
-        self.__longprefix = '--'
-        self.__shortprefix = '-'
-        self.__bundlemode = True
-        self.__parseall = True
+        self.__longprefix = optattr.longprefix
+        self.__shortprefix = optattr.shortprefix
+        if self.__shortprefix is None or self.__longprefix is None or \
+            self.__longprefix != self.__shortprefix:
+            self.__bundlemode = True
+        else:
+            self.__bundlemode = False
+        self.__parseall = optattr.parseall
         self.__leftargs = []
-        if optattr is not None:
-            if not issubclass(optattr.__class__,ExtArgsOptions):
-                raise Exception('[%s] not ExtArgsOptions or subclass'%(optattr))
-            if optattr.longprefix is not None:
-                self.__longprefix = optattr.longprefix
-            if optattr.shortprefix is not None:
-                self.__shortprefix = optattr.shortprefix
-            if self.__longprefix == self.__shortprefix:
-                self.__bundlemode = False
-            if optattr.parseall is not None:
-                self.__parseall = optattr.parseall
         return
 
     def format_cmdname_path(self,curparser=None):
@@ -1132,39 +1146,14 @@ class ExtArgsParse(_LoggerObject):
         self.__help_handler = options.helphandler
         self.__output_mode = []
         self.__ended = 0
-        self.__longprefix = '--'
-        self.__shortprefix = '-'
-        self.__nohelpoption = False
-        self.__nojsonoption = False
-        self.__helplong = 'help'
-        self.__helpshort = 'h'
-        self.__jsonlong = 'json'
-        self.__cmdprefixadded = True
-        if self.__options.longprefix is not None:
-            self.__longprefix = self.__options.longprefix
-        if self.__options.shortprefix is not None:
-            self.__shortprefix = self.__options.shortprefix
-
-        if self.__options.helplong is not None and len(self.__options.helplong) > 1:
-            self.__helplong = self.__options.helplong
-
-        self.info('helpshort [%s] [%s]'%(self.__options.helpshort,self.__options.is_accessed('helpshort')))
-        if self.__options.helpshort is not None and len(self.__options.helpshort) == 1:
-            self.__helpshort = self.__options.helpshort
-        elif self.__options.is_accessed('helpshort') and self.__options.helpshort is None:
-            self.__helpshort = None
-
-        if self.__options.jsonlong is not None and len(self.__options.jsonlong) > 1:
-            self.__jsonlong = self.__options.jsonlong
-
-        if self.__options.nohelpoption is not None:
-            self.__nohelpoption = self.__options.nohelpoption
-
-        if self.__options.nojsonoption is not None:
-            self.__nojsonoption = self.__options.nojsonoption
-
-        if self.__options.cmdprefixadded is not None:
-            self.__cmdprefixadded = self.__options.cmdprefixadded
+        self.__longprefix = options.longprefix
+        self.__shortprefix = options.shortprefix
+        self.__nohelpoption = options.nohelpoption
+        self.__nojsonoption = options.nojsonoption
+        self.__helplong = options.helplong
+        self.__helpshort = options.helpshort
+        self.__jsonlong = options.jsonlong
+        self.__cmdprefixadded = options.cmdprefixadded
 
         self.__load_command_map = {
             'string' : self.__load_command_line_base,
@@ -2008,10 +1997,13 @@ class debug_extargs_test_case(unittest.TestCase):
         while delone:
             delone = False
             for k in os.environ.keys():
-                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k.startswith('RDEP_') or k.startswith('EXTARGSPARSE_'):
-                    del os.environ[k]
-                    delone = True
-                    break        
+                if k.startswith('EXTARGS_') or k.startswith('DEP_') or k.startswith('RDEP_') or \
+                    k.startswith('EXTARGSPARSE_') or k.startswith('HTTP_') or \
+                    k.startswith('SSL_') or k.startswith('TCE_'):
+                    if k != 'EXTARGSPARSE_LOGLEVEL' and k != 'EXTARGSPARSE_LOGFMT':
+                        del os.environ[k]
+                        delone = True
+                        break        
         return
 
     def info(self,msg,callstack=1):
@@ -2054,6 +2046,15 @@ class debug_extargs_test_case(unittest.TestCase):
         elif filename is not None:
             self.error('%s %s'%(description,filename))
         return
+
+    def __write_jsonfile(self,jsonstr,outf=None):
+        if outf is None:
+            fd,outf = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
+            os.close(fd)
+        with open(outf,'w') as fout:
+            fout.write(jsonstr)
+        return outf
+
 
     def test_A001(self):
         loads = '''
@@ -2320,13 +2321,10 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         depjsonfile = None
         try:
-            fd,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
+            depjsonfile = self.__write_jsonfile('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
             options = ExtArgsOptions()
             options.errorhandler = 'raise'
@@ -2339,10 +2337,9 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
     def test_A011(self):
@@ -2362,13 +2359,10 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         depjsonfile = None
         try:
-            fd,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
+            depjsonfile = self.__write_jsonfile('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"}\n')
 
             options = ExtArgsOptions()
             options.errorhandler = 'raise'
@@ -2382,10 +2376,9 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
     def test_A012(self):
@@ -2405,16 +2398,10 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         try:
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            f = open(jsonfile,'w+')
-            f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            f.close()
-            f = None
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
             
@@ -2425,10 +2412,9 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
         return
 
     def test_A013(self):
@@ -2448,14 +2434,10 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         try:
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
@@ -2467,12 +2449,9 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
         return
 
     def test_A014(self):
@@ -2492,19 +2471,12 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -2518,13 +2490,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['depjson1','depjson2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
 
@@ -2545,19 +2514,12 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['DEP_JSON'] = depjsonfile
             parser = ExtArgsParse()
@@ -2570,13 +2532,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
 
@@ -2597,23 +2556,15 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -2629,13 +2580,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,deplistval)
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
     def test_A017(self):
@@ -2703,22 +2651,15 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
@@ -2735,13 +2676,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
     def test_A020(self):
@@ -2948,6 +2886,7 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         rdepjsonfile = None
@@ -2957,29 +2896,9 @@ class debug_extargs_test_case(unittest.TestCase):
             deplistval = eval(depliststr)
             httpvmstr = "True"
             httpvmval = eval(httpvmstr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd,rdepjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{ "http" : { "url" : "http://www.github.com"} ,"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-            with open(rdepjsonfile,'w+') as f:
-                f.write('{"ip": {"list":["rdepjson1","rdepjson3"],"verbose": 5}}\n')
-            delone = True
-            while delone:
-                delone = False
-                for k in os.environ.keys():
-                    if k.startswith('EXTARGS_') or k.startswith('DEP_') or k == 'EXTARGSPARSE_JSON' or k.startswith('HTTP_') or k.startswith('RDEP_'):
-                        del os.environ[k]
-                        delone = True
-                        break
+            jsonfile = self.__write_jsonfile('{ "http" : { "url" : "http://www.github.com"} ,"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
+            rdepjsonfile = self.__write_jsonfile('{"ip": {"list":["rdepjson1","rdepjson3"],"verbose": 5}}\n')
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -3011,20 +2930,11 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.rdep_ip_verbose,1)
             self.assertEqual(args.rdep_ip_cc,['ee'])
             self.assertEqual(args.rdep_ip_list,['rdepjson1','rdepjson3'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if rdepjsonfile is not None:
-                os.remove(rdepjsonfile)
-            rdepjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
-            if 'EXTARGSPARSE_JSON' in os.environ.keys():
-                del os.environ['EXTARGSPARSE_JSON']
-            if 'DEP_JSON' in os.environ.keys():
-                del os.environ['DEP_JSON']
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
+            self.__remove_file_ok(rdepjsonfile,'rdepjsonfile',ok)
         return
 
     def __split_strings(self,longstr):
@@ -3471,6 +3381,7 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         tempf = None
         try:
             tempf = self.__write_out_scripts(commandline)
@@ -3504,11 +3415,9 @@ class debug_extargs_test_case(unittest.TestCase):
             opts = parser.get_cmdopts('rdep')
             for opt in opts:
                 self.assertEqual(self.__get_opt_ok(sarr,opt),True)
-
+            ok = True
         finally:
-            if tempf is not None:
-                os.remove(tempf)
-            tempf = None
+            self.__remove_file_ok(tempf,'tempf',ok)
         return
 
 
@@ -3559,23 +3468,16 @@ class debug_extargs_test_case(unittest.TestCase):
         depjson = None
         ok = False
         try:
+            depjson = self.__write_jsonfile('{"dep_string":null}')
             parser = ExtArgsParse()
             parser.load_command_line_string(commandline)
-            fd,depjson = tempfile.mkstemp(suffix='.json',prefix='dep',dir=None,text=True)
-            os.close(fd)
-            with open(depjson,'w') as fout:
-                fout.write('{"dep_string":null}')
             args = parser.parse_command_line(['--json',depjson, 'dep'])
             self.assertEqual(args.dep_string,None)
             self.assertEqual(args.subcommand,'dep')
             self.assertEqual(args.subnargs,[])
             ok = True
         finally:
-            if ok :
-                os.remove(depjson)
-            else:
-                self.error('depjson %s error'%(depjson))
-            depjson = None
+            self.__remove_file_ok(depjson,'depjson',ok)
         return
 
     def test_A035(self):
@@ -3598,16 +3500,16 @@ class debug_extargs_test_case(unittest.TestCase):
 
         }
         '''
+        ok = False
         depjsonfile = None
         rdepjsonfile = None
         rdepipjsonfile = None
         jsonfile = None
-        ok = False
         try:
-            depjsonfile = self.__write_temp_file('{"float3":33.221}')
-            rdepjsonfile = self.__write_temp_file('{"ip" : { "float4" : 40.3}}')
-            jsonfile = self.__write_temp_file('{"verbose": 30,"float3": 77.1}')
-            rdepipjsonfile = self.__write_temp_file('{"float7" : 11.22,"float4" : 779.2}')
+            depjsonfile = self.__write_jsonfile('{"float3":33.221}')
+            rdepjsonfile = self.__write_jsonfile('{"ip" : { "float4" : 40.3}}')
+            jsonfile = self.__write_jsonfile('{"verbose": 30,"float3": 77.1}')
+            rdepipjsonfile = self.__write_jsonfile('{"float7" : 11.22,"float4" : 779.2}')
             env = dict()
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -3634,10 +3536,6 @@ class debug_extargs_test_case(unittest.TestCase):
             self.__remove_file_ok(rdepjsonfile,'rdepjsonfile',ok)
             self.__remove_file_ok(rdepipjsonfile,'rdepipjsonfile',ok)
             self.__remove_file_ok(jsonfile,'jsonfile',ok)
-            depjsonfile = None
-            rdepjsonfile = None
-            rdepipjsonfile = None
-            jsonfile = None
         return
 
     def test_A036(self):
@@ -3905,7 +3803,7 @@ class debug_extargs_test_case(unittest.TestCase):
             handler = logging.FileHandler(os.devnull,mode='a')
             rootlogger.handlers.append(handler)
         try:
-            jsonfile = self.__write_temp_file('{"emailaddress" : "unit@bingte.com","organizationname" : "BT RD","ssl" :{ "dir" : "./certs/bingte","name" : "bingte","subca" : true,"copy_extensions" : "copy","days" : 375,"crl_days" : 30,"bits" : 4096}}')
+            jsonfile = self.__write_jsonfile('{"emailaddress" : "unit@bingte.com","organizationname" : "BT RD","ssl" :{ "dir" : "./certs/bingte","name" : "bingte","subca" : true,"copy_extensions" : "copy","days" : 375,"crl_days" : 30,"bits" : 4096}}')
 
             args = parser.parse_command_line(['--json',jsonfile],parser)
             if oldloggers is not None:
@@ -3939,7 +3837,6 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.organizationname[0],'BT')
         finally:
             self.__remove_file_ok(jsonfile,'jsonfile',ok)
-            jsonfile = None
             if oldloggers is not None:
                 logger = logging.getLogger('extargsparse')
                 for h in logger.handlers:
@@ -4165,23 +4062,15 @@ class debug_extargs_test_case(unittest.TestCase):
             }
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
             os.environ['DEP_JSONFILE'] = depjsonfile
@@ -4199,13 +4088,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,['jsonval1','jsonval2'])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
     def test_A049(self):
@@ -4360,23 +4246,15 @@ class debug_extargs_test_case(unittest.TestCase):
             "nohelpoption" : true
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
             os.environ['DEP_JSONFILE'] = depjsonfile
@@ -4410,13 +4288,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,["depenv1","depenv2"])
             self.assertEqual(args.dep_string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
         return
 
     def test_A053(self):
@@ -4446,23 +4321,15 @@ class debug_extargs_test_case(unittest.TestCase):
             "cmdprefixadded" : false
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring","port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring","port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSON'] = jsonfile
             os.environ['DEP_JSON'] = depjsonfile
@@ -4534,13 +4401,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.list,["jsonval1","jsonval2"])
             self.assertEqual(args.string,'ee')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
 
@@ -4566,23 +4430,15 @@ class debug_extargs_test_case(unittest.TestCase):
             "jsonlong" : "jsonfile"
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
             os.environ['DEP_JSONFILE'] = depjsonfile
@@ -4599,13 +4455,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,["jsonval1","jsonval2"])
             self.assertEqual(args.dep_string,'jsonstring')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
 
@@ -4631,23 +4484,15 @@ class debug_extargs_test_case(unittest.TestCase):
             "jsonlong" : "jsonfile"
         }
         '''
+        ok = False
         jsonfile = None
         depjsonfile = None
         try:
             depstrval = 'newval'
             depliststr = '["depenv1","depenv2"]'
             deplistval = eval(depliststr)
-            fd,jsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            fd ,depjsonfile = tempfile.mkstemp(suffix='.json',prefix='parse',dir=None,text=True)
-            os.close(fd)
-            fd = -1
-            with open(jsonfile,'w+') as f:
-                f.write('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
-            with open(depjsonfile,'w+') as f:
-                f.write('{"list":["depjson1","depjson2"]}\n')
-
+            jsonfile = self.__write_jsonfile('{"dep":{"list" : ["jsonval1","jsonval2"],"string" : "jsonstring"},"port":6000,"verbose":3}\n')
+            depjsonfile = self.__write_jsonfile('{"list":["depjson1","depjson2"]}\n')
 
             os.environ['EXTARGSPARSE_JSONFILE'] = jsonfile
             os.environ['DEP_JSONFILE'] = depjsonfile
@@ -4664,13 +4509,10 @@ class debug_extargs_test_case(unittest.TestCase):
             self.assertEqual(args.dep_list,["jsonval1"])
             self.assertEqual(args.dep_string,'JSONSTRING')
             self.assertEqual(args.subnargs,['ww'])
+            ok = True
         finally:
-            if depjsonfile is not None:
-                os.remove(depjsonfile)
-            depjsonfile = None
-            if jsonfile is not None:
-                os.remove(jsonfile)
-            jsonfile = None
+            self.__remove_file_ok(jsonfile,'jsonfile',ok)
+            self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
 
