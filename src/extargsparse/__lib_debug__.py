@@ -4515,6 +4515,51 @@ class debug_extargs_test_case(unittest.TestCase):
             self.__remove_file_ok(depjsonfile,'depjsonfile',ok)
         return
 
+    def test_A056(self):
+        commandline='''
+        {
+            "asn1parse" : {
+                "$" : 0,
+                "$inform!optparse=inform_optparse;completefunc=inform_complete!" : null,
+                "$in" : null,
+                "$out" : null,
+                "$noout" : false,
+                "$offset" : 0,
+                "$length" : -1,
+                "$dump" : false,
+                "$dlimit" : -1,
+                "$oid" : null,
+                "$strparse" : 0,
+                "$genstr" : null,
+                "$genconf" : null
+            }
+        }
+        '''
+        extoptions='''
+        {
+            "longprefix" : "-",
+            "shortprefix" : "-",
+            "nojsonoption" : true,
+            "cmdprefixadded" : false
+        }
+        '''
+        options = ExtArgsOptions(extoptions)
+        parser = ExtArgsParse(options,None)
+        parser.load_command_line_string(commandline)
+        self.assertEqual(parser.get_subcommands(),['asn1parse'])
+        optname = ['inform','in','out','noout','offset','length','dump','dlimit','oid','strparse','genstr','genconf']
+        cmdopts = parser.get_cmdopts('asn1parse')
+        for opt in cmdopts:
+            if not opt.isflag  or opt.type == 'args' :
+                continue
+            if opt.type == 'help':
+                self.assertEqual(opt.longopt,'-help')
+                self.assertEqual(opt.shortopt,'-h')
+                continue
+            self.assertTrue(opt.optdest in optname)
+            self.assertEqual(opt.longopt,'-%s'%(opt.optdest))
+        return
+
 
 ##importdebugstart
 
