@@ -34,6 +34,7 @@ def main():
 	{
 		"verbose|v" : "+",
 		"pair|p!optparse=pair_parse;opthelp=pair_help!" : [],
+		"clr_CA_name" : null,
 		"$" : "*"
 	}
 	'''
@@ -43,12 +44,14 @@ def main():
 	options.jsonlong = 'jsonfile'
 	options.helplong = 'usage'
 	options.helpshort = '?'
+	options.flagnochange = True
 	parser = extargsparse.ExtArgsParse(options)
 	parser.load_command_line_string(commandline)
 	args = parser.parse_command_line()
 	print('verbose [%d]'%(args.verbose))
 	print('pair (%s)'%(args.pair))
 	print('args (%s)'%(args.args))
+	print('clr_CA_name (%s)'%(args.clr_CA_name))
 	return
 
 if __name__ == '__main__':

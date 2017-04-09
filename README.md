@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Apr 9th 2017 Release 1.0.2 to add flagnochange in options
 * Apr 1st 2017 Release 1.0.0 to for the first formal release
 * Mar 30th 2017 Release 0.9.8 to make the longprefix and shortprefix output and will give the jsonfunc callback
 * Mar 25th 2017 Release 0.9.0 to make no help and no json set and cmdprefixadded option set
@@ -619,6 +620,10 @@ if __name__ == '__main__':
 ### no cmd with prefix 
 > if you want no command prefix to add in the command ,please use option with
 > cmdprefixadded = False give example
+
+### flagnochange 
+> if you set this true,
+> it will not change the _ to - in the flag mode
 
 ```python
 #! /usr/bin/env python

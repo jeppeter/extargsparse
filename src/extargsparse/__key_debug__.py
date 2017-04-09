@@ -164,6 +164,7 @@ class ExtKeyParse(object):
         self.__isflag = None
         self.__type = None
         self.__attr = None
+        self.__nochange = False
         self.__longprefix= '--'
         self.__shortprefix = '-'
         return
@@ -476,7 +477,7 @@ class ExtKeyParse(object):
 
 
 
-    def __init__(self,prefix,key,value,isflag=False,ishelp=False,isjsonfile=False,longprefix='--',shortprefix='-'):
+    def __init__(self,prefix,key,value,isflag=False,ishelp=False,isjsonfile=False,longprefix='--',shortprefix='-',nochange=False):
         key = Utf8Encode(key).get_val()
         prefix = Utf8Encode(prefix).get_val()
         value = Utf8Encode(value).get_val()
@@ -486,12 +487,13 @@ class ExtKeyParse(object):
         self.__cmdexpr = re.compile('^([^\#\<\>\+\$\!]+)',re.I)
         self.__prefixexpr = re.compile('\+([a-zA-Z]+[a-zA-Z_\-0-9]*)',re.I)
         self.__funcexpr = re.compile('<([^\<\>\#\$\| \t\!]+)>',re.I)
-        self.__flagexpr = re.compile('^([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?]*)',re.I)
-        self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?]*)',re.I)
+        self.__flagexpr = re.compile('^([a-zA-Z_\|\?\-]+[a-zA-Z_0-9\|\?\-]*)',re.I)
+        self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?\-]*)',re.I)
         self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
         self.__origkey = key
         self.__longprefix = longprefix
         self.__shortprefix = shortprefix
+        self.__nochange = nochange
         if isinstance(key,dict):
             raise Exception('can not accept key for dict type')
         else:
@@ -509,8 +511,9 @@ class ExtKeyParse(object):
             if len(self.__prefix) > 0 and self.__type != 'help':
                 longopt += '%s_'%(self.__prefix)
             longopt += self.__flagname
-            longopt = longopt.lower()
-            longopt = longopt.replace('_','-')
+            if not self.__nochange:
+                longopt = longopt.lower()
+                longopt = longopt.replace('_','-')
             return longopt
         elif keyname == 'shortopt':
             if not self.__isflag or self.__flagname is None or self.__type == 'args':
@@ -527,7 +530,9 @@ class ExtKeyParse(object):
                 optdest += '%s_'%(self.__prefix)
             optdest += self.__flagname
             optdest = optdest
-            optdest = optdest.lower()
+            if not self.__nochange:
+                optdest = optdest.lower()
+            # this is for the 
             optdest = optdest.replace('-','_')
             return optdest
         elif keyname == 'needarg':
@@ -1284,6 +1289,25 @@ class debug_key_test_case(unittest.TestCase):
         self.assertEqual(flags.varname,'rollback')
         self.assertEqual(flags.longopt,'++no-rollback')
         self.assertEqual(flags.shortopt,'+R')
+        self.assertEqual(flags.longprefix,'++')
+        self.assertEqual(flags.shortprefix,'+')
+        return
+
+    def test_A045(self):
+        flags = ExtKeyParse('','crl_CA_compromise',False,False,False,longprefix='++',shortprefix='+',nochange=True)
+        self.assertEqual(flags.flagname,'crl_CA_compromise')
+        self.assertEqual(flags.shortflag,None)
+        self.assertEqual(flags.prefix,'')
+        self.assertEqual(flags.type,'bool')
+        self.assertEqual(flags.value,False)
+        self.assertEqual(flags.helpinfo,None)
+        self.assertEqual(flags.nargs,0)
+        self.assertEqual(flags.cmdname,None)
+        self.assertEqual(flags.function,None)
+        self.assertEqual(flags.optdest,'crl_CA_compromise')
+        self.assertEqual(flags.varname,'crl_CA_compromise')
+        self.assertEqual(flags.longopt,'++crl_CA_compromise')
+        self.assertEqual(flags.shortopt,None)
         self.assertEqual(flags.longprefix,'++')
         self.assertEqual(flags.shortprefix,'+')
         return
