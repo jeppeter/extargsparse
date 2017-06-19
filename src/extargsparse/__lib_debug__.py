@@ -321,7 +321,6 @@ class _ParserCompact(_LoggerObject):
             self.keycls = keyparse.ExtKeyParse('','main',{},False)
             self.cmdname = ""
             self.cmdopts = []
-            self.cmdopts = []
             self.subcommands = []
             self.helpinfo = None
             self.callfunction = None        
@@ -368,7 +367,7 @@ class _ParserCompact(_LoggerObject):
 
         if recursive != 0:
             for cmd in self.subcommands:
-                if recursively > 0:
+                if recursive > 0:
                     helpsize = cmd.get_help_size(helpsize,recursive-1)
                 else:
                     helpsize = cmd.get_help_size(helpsize,recursive)
