@@ -315,7 +315,7 @@ class _ParserCompact(_LoggerObject):
                 self.helpinfo = keycls.helpinfo
             self.callfunction = None
             if keycls.function is not None:
-                self.callfunction = None
+                self.callfunction = keycls.function
         else:
             # it is main cmd
             self.keycls = keyparse.ExtKeyParse('','main',{},False)
