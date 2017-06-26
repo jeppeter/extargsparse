@@ -1081,22 +1081,13 @@ class ExtArgsParse(_LoggerObject):
         return True
 
     def __load_command_line_args(self,prefix,keycls,curparser=None):
-        valid = self.__check_flag_insert(keycls,curparser)
-        if not valid :
-            return False
-        return True
+        return self.__check_flag_insert(keycls,curparser)
 
     def __load_command_line_help(self,keycls,curparser=None):
-        valid = self.__check_flag_insert(keycls,curparser)
-        if not valid:
-            return False
-        return True
+        return self.__check_flag_insert(keycls,curparser)
 
     def __load_command_line_jsonfile(self,keycls,curparser=None):
-        valid = self.__check_flag_insert(keycls,curparser)
-        if not valid:
-            return False
-        return True
+        return self.__check_flag_insert(keycls,curparser)
 
     def __load_command_line_json_added(self,curparser=None):
         prefix = ''        
