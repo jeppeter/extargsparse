@@ -1043,28 +1043,20 @@ class ExtArgsParse(_LoggerObject):
 
     def __check_flag_insert(self,keycls,curparser=None):
         if curparser :
-            for k in curparser[-1].cmdopts:
-                if k.flagname != '$' and keycls.flagname != '$':
-                    if k.type != 'help' and keycls.type != 'help':
-                        if k.optdest == keycls.optdest:
-                            return False
-                    elif k.type == 'help' and keycls.type == 'help':
-                        return False
-                elif k.flagname == '$' and keycls.flagname == '$':
-                    return False
-            #self.info('append [%s] %s'%(self.__format_cmd_from_cmd_array(curparser),keycls))
-            curparser[-1].cmdopts.append(keycls)
+            lastparser = curparser[-1]
         else:
-            for k in self.__maincmd.cmdopts:
-                if k.flagname != '$' and keycls.flagname != '$':
+            lastparser = self.__maincmd
+        for k in lastparser.cmdopts:
+            if k.flagname != '$' and keycls.flagname != '$':
+                if k.type != 'help' and keycls.type != 'help':
                     if k.optdest == keycls.optdest:
                         return False
-                    elif k.type == 'help' and keycls.type == 'help':
-                        return False
-                elif k.flagname == '$' and keycls.flagname == '$':
+                elif k.type == 'help' and keycls.type == 'help':
                     return False
-            #self.info('append [%s] %s'%(self.__format_cmd_from_cmd_array(curparser),keycls))
-            self.__maincmd.cmdopts.append(keycls)
+            elif k.flagname == '$' and keycls.flagname == '$':
+                return False
+        #self.info('append [%s] %s'%(self.__format_cmd_from_cmd_array(curparser),keycls))
+        lastparser.cmdopts.append(keycls)
         return True
 
     def __check_flag_insert_mustsucc(self,keycls,curparser=None):
