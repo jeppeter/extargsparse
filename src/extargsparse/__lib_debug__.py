@@ -1336,7 +1336,7 @@ class ExtArgsParse(_LoggerObject):
             keycls = keyparse.ExtKeyParse(prefix,k,v,False,False,False,self.__longprefix,self.__shortprefix,self.__options.flagnochange)
             valid = self.__load_command_map[keycls.type](prefix,keycls,parentpath)
             if not valid:
-                msg = 'can not add (%s)'%(k,v)
+                msg = 'can not add (%s,%s)'%(k,v)
                 self.error_msg(msg)
         self.info('%s'%(self.format_string(parentpath)))
         return
@@ -1519,7 +1519,7 @@ class ExtArgsParse(_LoggerObject):
                             self.__call_json_value(args,keycls,value)
                         except:
                             self.warn('can not set (%s) for %s = %s\n%s'%(optdest,oldopt,val,self.__get_except_info()))
-                    elif keycls.type == 'int' or keycls.type == 'count':
+                    elif keycls.type == 'int' or keycls.type == 'count' or keycls.type == 'long':
                         try:
                             val = val.lower()
                             base = 10
