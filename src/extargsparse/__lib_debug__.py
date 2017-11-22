@@ -2775,7 +2775,7 @@ class debug_extargs_test_case(unittest.TestCase):
         cmds = parser.get_subcommands()
         self.assertEqual(len(cmds),2)
         cmd = self.__assert_get_subcommand(cmds,'dep')
-        self.assertTrue(cmd,'dep')
+        self.assertEqual(cmd,'dep')
         cmd = self.__assert_get_subcommand(cmds,'rdep')
         self.assertEqual(cmd,'rdep')
         opts = parser.get_cmdopts()
