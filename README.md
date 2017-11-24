@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Nov 24th 2017 Release 1.0.4 to fixup bug on the print_help with len(usage) == 0
 * Apr 9th 2017 Release 1.0.2 to add flagnochange in options
 * Apr 1st 2017 Release 1.0.0 to for the first formal release
 * Mar 30th 2017 Release 0.9.8 to make the longprefix and shortprefix output and will give the jsonfunc callback
@@ -441,11 +442,27 @@ def pair_help(keycls):
   return '[first] [second]'
 
 
+def single_2_jsonfunc(args,keycls,value):
+    if not isinstance(value,list):
+        raise Exception('not list value')
+    if (len(value) % 2) != 0:
+        raise Exception('not even sized')
+    setvalue = []
+    i = 0
+    while i < len(value):
+        setvalue.append(value[i])
+        i += 2
+    setattr(args,keycls.optdest,setvalue)
+    return
+
+
 def main():
   commandline='''
   {
     "verbose|v" : "+",
     "pair|p!optparse=pair_parse;opthelp=pair_help!" : [],
+    "even|e!jsonfunc=single_2_jsonfunc!" : [],
+    "clr_CA_name" : null,
     "$" : "*"
   }
   '''
@@ -455,12 +472,15 @@ def main():
   options.jsonlong = 'jsonfile'
   options.helplong = 'usage'
   options.helpshort = '?'
+  options.flagnochange = True
   parser = extargsparse.ExtArgsParse(options)
   parser.load_command_line_string(commandline)
   args = parser.parse_command_line()
   print('verbose [%d]'%(args.verbose))
   print('pair (%s)'%(args.pair))
   print('args (%s)'%(args.args))
+  print('clr_CA_name (%s)'%(args.clr_CA_name))
+  print('event (%s)'%(args.even))
   return
 
 if __name__ == '__main__':
@@ -474,16 +494,26 @@ python3 opthelp.py +?
 > result will be
 
 ```shell
-opthandle.py  [OPTIONS] [args...]
+opthandle.py 0.0.1  [OPTIONS] [args...]
+
 [OPTIONS]
-    ++jsonfile    jsonfile  json input file to get the value set
-    ++usage|+?              to display this help information
-    ++verbose|+v  verbose   verbose set default(0)
-    ++pair|+p     pair      [first] [second]
+    ++jsonfile     jsonfile     json input file to get the value set
+    ++usage|+?                  to display this help information
+    ++verbose|+v   verbose      verbose set default(0)
+    ++even|+e      even         even set default([])
+    ++clr_CA_name  clr_CA_name  clr_CA_name set default(None)
+    ++pair|+p      pair         [first] [second]
+```
+
+> cc.json file
+```json
+{
+    "even": ["good", "bad"]
+}
 ```
 
 ```shell
-python opthandle.py ++pair cc ss rr +vvvv
+python opthandle.py ++jsonfile cc.json ++pair cc ss rr +vvvv
 ```
 
 > result will be
@@ -492,7 +522,10 @@ python opthandle.py ++pair cc ss rr +vvvv
 verbose [4]
 pair (['cc', 'ss'])
 args (['rr'])
+clr_CA_name (None)
+event (['good'])
 ```
+
 
 ###  extension attribute 
 

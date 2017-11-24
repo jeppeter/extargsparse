@@ -404,7 +404,7 @@ class _ParserCompact(_LoggerObject):
         if helpsize is None:
             helpsize = self.get_help_size()
         s = ''
-        if self.usage is not None:
+        if self.usage is not None and len(self.usage) > 0:
             s += '%s'%(self.usage)
         else:
             rootcmds = self
@@ -1383,6 +1383,7 @@ class ExtArgsParse(_LoggerObject):
         return curcmd.get_help_info(None,cmdpaths)
 
     def print_help(self,fp=sys.stderr,cmdname=''):
+        self.__set_command_line_self_args()
         paths = self.__find_commands_in_path(cmdname)
         if paths is  None:
             self.error_msg('can not find [%s] cmd'%(cmdname))
@@ -4635,6 +4636,27 @@ class debug_extargs_test_case(unittest.TestCase):
                 continue
             self.assertTrue(opt.optdest in optname)
             self.assertEqual(opt.longopt,'-%s'%(opt.optdest))
+        return
+
+    def test_A058(self):
+        commandline='''
+        {
+            "verbose" : "+",
+            "dep" : {
+                "$" : "*"
+            },
+            "rdep" : {
+                "$" : "*"
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        sarr = self.__split_strings(sio.getvalue())
+        matchexpr = re.compile('.*\[OPTIONS\]\s+\[SUBCOMMANDS\]\s+.*')
+        self.assertTrue(matchexpr.match(sarr[0]))
         return
 
 

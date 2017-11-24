@@ -28,12 +28,26 @@ def pair_parse(args,validx,keycls,params):
 def pair_help(keycls):
 	return '[first] [second]'
 
+def single_2_jsonfunc(args,keycls,value):
+    if not isinstance(value,list):
+        raise Exception('not list value')
+    if (len(value) % 2) != 0:
+        raise Exception('not even sized')
+    setvalue = []
+    i = 0
+    while i < len(value):
+        setvalue.append(value[i])
+        i += 2
+    setattr(args,keycls.optdest,setvalue)
+    return
+
 
 def main():
 	commandline='''
 	{
 		"verbose|v" : "+",
 		"pair|p!optparse=pair_parse;opthelp=pair_help!" : [],
+		"even|e!jsonfunc=single_2_jsonfunc!" : [],
 		"clr_CA_name" : null,
 		"$" : "*"
 	}
@@ -52,6 +66,7 @@ def main():
 	print('pair (%s)'%(args.pair))
 	print('args (%s)'%(args.args))
 	print('clr_CA_name (%s)'%(args.clr_CA_name))
+	print('event (%s)'%(args.even))
 	return
 
 if __name__ == '__main__':
