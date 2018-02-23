@@ -54,7 +54,7 @@ class KeyAttr(object):
 
     def __str__(self):
         s = '{'
-        for k in self.__obj.keys():
+        for k in sorted(self.__obj.keys()):
             s += '%s=%s;'%(k,self.__obj[k])
         s += '}'
         return s
@@ -172,7 +172,7 @@ class ExtKeyParse(object):
     def __eq_name__(self,other,name):
         if name in self.__class__.flagwords or name in self.__class__.flagspecial or \
             name in self.__class__.cmdwords or name in self.__class__.otherwords or \
-            name in self.__class__.formwords:
+            name in self.__class__.formwords :
             keyname = self.__get_inner_name(name)
             if self.__dict__[keyname] is None and \
                 other.__dict__[keyname] is None:
@@ -188,6 +188,20 @@ class ExtKeyParse(object):
             return True
         return False
 
+    def __eq_attr__(self,other):
+        sattr = self.__attr
+        kname = self.__get_inner_name('attr')
+        oattr = other.__dict__[kname]
+        if sattr is None and oattr is None:
+            return True
+        if sattr is not None and oattr is None:
+            return False
+        if sattr is None and oattr is not None:
+            return False
+        if str(sattr) != str(oattr):
+            return False
+        return True
+
     def __eq__(self,other):
         if not self.__eq_name__(other,'origkey'):
             return False
@@ -197,11 +211,16 @@ class ExtKeyParse(object):
             return False
         if not self.__eq_name__(other,'value'):
             return False
+        if not self.__eq_attr__(other):
+            return False
         if self.__longprefix != other.__longprefix:
             return False
         if self.__shortprefix != other.__shortprefix:
-            return False
+            return False        
         return True
+
+    def __ne__(self,other):
+        return not self.__eq__(other)
 
 
     def __validate(self):
@@ -1200,9 +1219,9 @@ class debug_key_test_case(unittest.TestCase):
         flag1 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
         flag2 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False)
         self.assertFalse(flag1 == flag2)
-        flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+        flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func!',None,False,True)
         flag4 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
-        self.assertTrue(flag3 == flag4)
+        self.assertTrue(flag3 != flag4)
         return
 
     def test_A039(self):

@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Feb 23th 2018 Release 1.0.6 to make the \_\_eq_attr\_\_ for attribute equal
 * Nov 24th 2017 Release 1.0.4 to fixup bug on the print_help with len(usage) == 0
 * Apr 9th 2017 Release 1.0.2 to add flagnochange in options
 * Apr 1st 2017 Release 1.0.0 to for the first formal release
