@@ -202,7 +202,9 @@ class ExtKeyParse(object):
             return False
         return True
 
-    def __eq__(self,other):
+    def __eq__(self,other):        
+        if not self.__eq_name__(other,'type'):
+            return False
         if not self.__eq_name__(other,'origkey'):
             return False
         if not self.__eq_name__(other,'prefix'):
@@ -1219,6 +1221,9 @@ class debug_key_test_case(unittest.TestCase):
         flag1 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
         flag2 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False)
         self.assertFalse(flag1 == flag2)
+        flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+        flag4 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
+        self.assertTrue(flag3 == flag4)
         flag3 = ExtKeyParse('prefix','help|h!func=args_opt_func!',None,False,True)
         flag4 = ExtKeyParse('prefix','help|h!func=args_opt_func;wait=cc!',None,False,True)
         self.assertTrue(flag3 != flag4)
