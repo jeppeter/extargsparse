@@ -1120,12 +1120,6 @@ class ExtArgsParse(_LoggerObject):
         self.__options = options
         self.__maincmd = _ParserCompact(None,options)
 
-        self.__maincmd.prog = options.prog
-        self.__maincmd.usage = options.usage
-        self.__maincmd.description = options.description
-        self.__maincmd.epilog = options.epilog
-        self.__maincmd.version = options.version
-        self.__error_handler = options.errorhandler
         self.__help_handler = options.helphandler
         self.__output_mode = []
         self.__ended = 0
