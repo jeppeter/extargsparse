@@ -1586,11 +1586,7 @@ class ExtArgsParse(_LoggerObject):
         parentpaths = [self.__maincmd]
         if paths is not None:
             parentpaths = paths
-        for chld in parentpaths[-1].subcommands:
-            curpaths = parentpaths
-            curpaths.append(chld)
-            self.__set_command_line_self_args_inner(curpaths)
-            curpaths.pop()
+
         setted = False
         for opt in parentpaths[-1].cmdopts:
             if opt.isflag and opt.flagname == '$':
@@ -1605,6 +1601,13 @@ class ExtArgsParse(_LoggerObject):
             prefix = cmdname.replace('.','_')
             curkey = keyparse.ExtKeyParse('','$','*',True)
             self.__load_command_line_args('',curkey,parentpaths)
+
+
+        for chld in parentpaths[-1].subcommands:
+            curpaths = parentpaths
+            curpaths.append(chld)
+            self.__set_command_line_self_args_inner(curpaths)
+            curpaths.pop()
         return
 
 
