@@ -1553,13 +1553,6 @@ class ExtArgsParse(_LoggerObject):
         parentpaths = [self.__maincmd]
         if paths is not None:
             parentpaths = paths
-        for chld in parentpaths[-1].subcommands:
-            curpaths = parentpaths
-            curpaths.append(chld)
-            copyoptcheck = _OptCheck()
-            copyoptcheck.copy(optcheck)
-            self.__check_varname_inner(curpaths,copyoptcheck)
-            curpaths.pop()
 
         for opt in parentpaths[-1].cmdopts:
             if opt.isflag:
@@ -1578,6 +1571,15 @@ class ExtArgsParse(_LoggerObject):
                     if not bval:
                         msg = '%s is already in the check list'%(opt.longopt)
                         self.error_msg(msg)
+
+        for chld in parentpaths[-1].subcommands:
+            curpaths = parentpaths
+            curpaths.append(chld)
+            copyoptcheck = _OptCheck()
+            copyoptcheck.copy(optcheck)
+            self.__check_varname_inner(curpaths,copyoptcheck)
+            curpaths.pop()
+
         return
 
     def __set_command_line_self_args_inner(self,paths=None):
