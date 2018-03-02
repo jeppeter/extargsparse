@@ -3368,7 +3368,7 @@ class debug_extargs_test_case(unittest.TestCase):
         tempf = None
         try:
             tempf = self.__write_out_scripts(commandline)
-            cmd = 'python %s -h'%(tempf)
+            cmd = '%s %s -h'%(sys.executable,tempf)
             exitcode,output = self.__get_cmd_output(cmd)
             self.assertEqual(exitcode,0)
             sarr = self.__split_strings(output)
@@ -3379,7 +3379,7 @@ class debug_extargs_test_case(unittest.TestCase):
                 self.assertEqual(self.__get_opt_ok(sarr,opt),True)
 
 
-            cmd = 'python %s dep -h'%(tempf)
+            cmd = '%s %s dep -h'%(sys.executable,tempf)
             exitcode,output = self.__get_cmd_output(cmd)
             self.assertEqual(exitcode,0)
             sarr = self.__split_strings(output)
@@ -3389,7 +3389,7 @@ class debug_extargs_test_case(unittest.TestCase):
             for opt in opts:
                 self.assertEqual(self.__get_opt_ok(sarr,opt),True)
 
-            cmd = 'python %s rdep -h'%(tempf)
+            cmd = '%s %s rdep -h'%(sys.executable,tempf)
             exitcode,output = self.__get_cmd_output(cmd)
             self.assertEqual(exitcode,0)
             sarr = self.__split_strings(output)
