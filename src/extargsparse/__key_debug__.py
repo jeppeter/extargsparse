@@ -21,7 +21,7 @@ class KeyAttr(object):
         self.__attr = ''
         if attr is not None:
             if isinstance(attr,str) or (sys.version== '2' and isinstance(attr,unicode)):
-                if attr.startswith('split=') and len(attr) >= 7:
+                if attr.lower().startswith('split=') and len(attr) >= 7:
                     c = attr[6]
                     if c == '.':
                         self.__splitchar= '\.'
@@ -39,7 +39,7 @@ class KeyAttr(object):
                         raise Exception('can not accept (%s) as split char'%(c))
                 sarr = re.split(self.__splitchar,attr)
                 for c in sarr:              
-                    if c.startswith('split=') or len(c) == 0:
+                    if c.lower().startswith('split=') or len(c) == 0:
                         # because this is the new
                         continue
                     key,val = re.split('=',c,2)

@@ -1921,6 +1921,18 @@ def debug_set_2_args(args,validx,keycls,params):
     setattr(args,keycls.optdest,val)
     return 2
 
+def Debug_set_2_args(args,validx,keycls,params):
+    if (validx + 2) > len(params):
+        raise Exception('need 2 args')
+    val = getattr(args,keycls.optdest,None)
+    if val is None:
+        val = []
+    val.append(params[validx].upper())
+    val.append(params[(validx + 1)].upper())
+    setattr(args,keycls.optdest,val)
+    return 2
+
+
 def debug_2_jsonfunc(args,keycls,value):
     if not isinstance(value,list):
         raise Exception('not list value')
@@ -4656,6 +4668,34 @@ class debug_extargs_test_case(unittest.TestCase):
         sarr = self.__split_strings(sio.getvalue())
         matchexpr = re.compile('.*\[OPTIONS\]\s+\[SUBCOMMANDS\]\s+.*')
         self.assertTrue(matchexpr.match(sarr[0]))
+        return
+
+    def test_A059(self):
+        commandline='''
+        {
+            "verbose|v" : "+",
+            "kernel|K" : "/boot/",
+            "initrd|I" : "/boot/",
+            "pair|P!optparse=Debug_set_2_args!" : [],
+            "encryptfile|e" : null,
+            "encryptkey|E" : null,
+            "setupsectsoffset" : 663,
+            "ipxe" : {
+                "$" : "+"
+            }
+        }
+        '''
+        options = ExtArgsOptions()
+        options.parseall = True
+        options.longprefix = '++'
+        options.shortprefix = '+'
+        parser = ExtArgsParse(options)
+        # to indirect the code
+        parser.load_command_line_string(commandline)
+        args = parser.parse_command_line(['+K','kernel','++pair','initrd','cc','dd','+E','encryptkey','+e','encryptfile','ipxe'],None)
+        self.assertEqual(args.subcommand,'ipxe')
+        self.assertEqual(args.subnargs,['dd'])
+        self.assertEqual(args.pair,['INITRD','CC'])
         return
 
 
