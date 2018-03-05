@@ -486,6 +486,7 @@ class _ParserCompact(_LoggerObject):
 
         if self.epilog is not None:
             s += '\n%s\n'%(self.epilog)
+        self.info('%s'%(s))
         return s
 
     def __str__(self):
@@ -2962,6 +2963,17 @@ class debug_extargs_test_case(unittest.TestCase):
         logging.debug('sarr (%s) exprstr[%s]'%(sarr,exprstr))
         return self.__assert_string_expr(sarr,exprstr)
 
+    def __get_cmd_ok(self,sarr,cmdname):
+        exprstr = '^\\s+\\[%s\\]\\s+.*'%(cmdname)
+        return self.__assert_string_expr(sarr,exprstr)
+
+    def __get_cmds_ok(self,parser,sarr,cmdname):
+        subcmds = parser.get_subcommands(cmdname)
+        for c in subcmds:
+            ok = self.__get_cmd_ok(sarr,c)
+            self.assertEqual(ok,True)
+        return
+
 
     def test_A026(self):
         commandline= '''
@@ -4697,6 +4709,43 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(args.subnargs,['dd'])
         self.assertEqual(args.pair,['INITRD','CC'])
         return
+
+    def test_A060(self):
+        commandline='''
+        {
+            "dep" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            },
+            "rdep" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio)
+        sarr = self.__split_strings(sio.getvalue())
+        self.__get_cmds_ok(parser,sarr,"")
+
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"dep")
+        sarr = self.__split_strings(sio.getvalue())
+        self.__get_cmds_ok(parser,sarr,"dep")
+
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"rdep")
+        sarr = self.__split_strings(sio.getvalue())
+        self.__get_cmds_ok(parser,sarr,"rdep")
+        return
+
+
 
 
 ##importdebugstart
