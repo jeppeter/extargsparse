@@ -404,12 +404,14 @@ class _ParserCompact(_LoggerObject):
         if helpsize is None:
             helpsize = self.get_help_size()
         s = ''
-        if self.usage is not None and len(self.usage) > 0:
+        if len(parentcmds) == 0 and self.usage is not None and len(self.usage) > 0:
             s += '%s'%(self.usage)
         else:
             rootcmds = self
+            curcmd = self            
             if len(parentcmds) > 0:
                 rootcmds = parentcmds[0]
+            logging.debug('curcmd %s'%(curcmd))
             if rootcmds.prog is not None:
                 s += '%s'%(rootcmds.prog)
             else:
@@ -420,27 +422,30 @@ class _ParserCompact(_LoggerObject):
                 for c in parentcmds:
                         s += ' %s'%(c.cmdname)
             s += ' %s'%(self.cmdname)
-            if len(self.cmdopts) > 0:
-                s += ' [OPTIONS]'
-            if len(self.subcommands) > 0:
-                s += ' [SUBCOMMANDS]'
-            for args in self.cmdopts:
-                if args.flagname == '$':
-                    if isinstance(args.nargs,str):
-                        if args.nargs == '+' :
-                            s += ' args...'
-                        elif args.nargs == '*':
-                            s += ' [args...]'
-                        elif args.nargs == '?':
-                            s += ' arg'
-                    else:
-                        if args.nargs > 1:
-                            s += ' args...'
-                        elif args.nargs == 1:
-                            s += ' arg'
+            if curcmd.helpinfo is not None and len(curcmd.helpinfo) > 0:
+                s += ' %s'%(curcmd.helpinfo)
+            else:
+                if len(self.cmdopts) > 0:
+                    s += ' [OPTIONS]'
+                if len(self.subcommands) > 0:
+                    s += ' [SUBCOMMANDS]'
+                for args in self.cmdopts:
+                    if args.flagname == '$':
+                        if isinstance(args.nargs,str):
+                            if args.nargs == '+' :
+                                s += ' args...'
+                            elif args.nargs == '*':
+                                s += ' [args...]'
+                            elif args.nargs == '?':
+                                s += ' arg'
                         else:
-                            s += ''
-                        break
+                            if args.nargs > 1:
+                                s += ' args...'
+                            elif args.nargs == 1:
+                                s += ' arg'
+                            else:
+                                s += ''
+                            break
             s += '\n'
         if self.description is not None:
             s += '%s\n'%(self.description)        
@@ -4743,6 +4748,47 @@ class debug_extargs_test_case(unittest.TestCase):
         parser.print_help(sio,"rdep")
         sarr = self.__split_strings(sio.getvalue())
         self.__get_cmds_ok(parser,sarr,"rdep")
+        return
+
+    def test_A061(self):
+        commandline='''
+        {
+            "dep##[cc]... dep handler used##" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            },
+            "rdep##[dd]... rdep handler used##" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            }
+        }
+        '''
+        parser = ExtArgsParse()
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"dep")
+        sarr = self.__split_strings(sio.getvalue())
+        expr = re.compile('\[cc\]... dep handler used')
+        ok = False
+        if len(sarr) > 0 :
+            m = expr.findall(sarr[0])
+            if len(m) > 0:
+                ok = True
+        self.assertEqual(ok, True)
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"rdep")
+        sarr = self.__split_strings(sio.getvalue())
+        expr = re.compile('\[dd\]... rdep handler used')
+        ok = False
+        if len(sarr) > 0 :
+            m = expr.findall(sarr[0])
+            if len(m) > 0:
+                ok = True
+        self.assertEqual(ok, True)
         return
 
 
