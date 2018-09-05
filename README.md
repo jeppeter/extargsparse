@@ -2,6 +2,7 @@
 > python command package for json string set
 
 ### Release History
+* Sep 5th 2018 Release 1.1.6 to fixup bug when call __error_handler is not defined and usage for prog on subcommand
 * Sep 4th 2018 Release 1.1.0 to make the subcommand lines with self set usage
 * Feb 23th 2018 Release 1.0.8 to make the \_\_eq_attr\_\_ for attribute equal
 * Nov 24th 2017 Release 1.0.4 to fixup bug on the print_help with len(usage) == 0
