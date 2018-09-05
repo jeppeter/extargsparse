@@ -1137,6 +1137,7 @@ class ExtArgsParse(_LoggerObject):
         self.__helpshort = options.helpshort
         self.__jsonlong = options.jsonlong
         self.__cmdprefixadded = options.cmdprefixadded
+        self.__error_handler = options.errorhandler
 
         self.__load_command_map = {
             'string' : self.__load_command_line_base,
