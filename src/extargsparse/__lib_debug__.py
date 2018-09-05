@@ -303,6 +303,8 @@ class _ParserCompact(_LoggerObject):
         return helpinfo
 
     def __init__(self,keycls=None,opt=None):
+        if opt is not None and not issubclass(opt.__class__, ExtArgsOptions):
+            raise Exception('opt not ExtArgsOptions type')
         super(_ParserCompact,self).__init__()
         if keycls is not None:
             assert(keycls.iscmd)
@@ -334,6 +336,8 @@ class _ParserCompact(_LoggerObject):
         self.prog = None
         self.usage = None
         self.version = None
+        if opt is not None:
+            self.prog = opt.prog
         return
 
     def __get_opt_help(self,opt):        
@@ -411,7 +415,7 @@ class _ParserCompact(_LoggerObject):
             curcmd = self            
             if len(parentcmds) > 0:
                 rootcmds = parentcmds[0]
-            logging.debug('curcmd %s'%(curcmd))
+            self.debug('curcmd %s'%(curcmd))
             if rootcmds.prog is not None:
                 s += '%s'%(rootcmds.prog)
             else:
@@ -1277,7 +1281,7 @@ class ExtArgsParse(_LoggerObject):
         cmdparser = self.__find_subparser_inner(cmdname)
         if cmdparser is not None:
             return cmdparser        
-        cmdparser = _ParserCompact(keycls)
+        cmdparser = _ParserCompact(keycls,self.__options)
 
         if len(parentname) == 0:
             #self.info('append to main')
@@ -4792,6 +4796,54 @@ class debug_extargs_test_case(unittest.TestCase):
         self.assertEqual(ok, True)
         return
 
+
+    def test_A062(self):
+        commandline='''
+        {
+            "dep##[cc]... dep handler used##" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            },
+            "rdep##[dd]... rdep handler used##" : {
+                "$" : "*",
+                "ip" : {
+                    "$" : "*"
+                }
+            }
+        }
+        '''
+        opts = ExtArgsOptions()
+        opts.prog = 'cmd1'
+        parser = ExtArgsParse(opts)
+        parser.load_command_line_string(commandline)
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"dep")
+        sarr = self.__split_strings(sio.getvalue())
+        expr = re.compile('\[cc\]... dep handler used')
+        expr2 = re.compile('cmd1')
+        ok = False
+        if len(sarr) > 0 :
+            m = expr.findall(sarr[0])
+            if len(m) > 0:
+                m = expr2.findall(sarr[0])
+                if len(m) > 0:
+                    ok = True
+        self.assertEqual(ok, True)
+        sio = StringIO.StringIO()
+        parser.print_help(sio,"rdep")
+        sarr = self.__split_strings(sio.getvalue())
+        expr = re.compile('\[dd\]... rdep handler used')
+        ok = False
+        if len(sarr) > 0 :
+            m = expr.findall(sarr[0])
+            if len(m) > 0:
+                m = expr2.findall(sarr[0])
+                if len(m) > 0:
+                    ok = True
+        self.assertEqual(ok, True)
+        return
 
 
 
