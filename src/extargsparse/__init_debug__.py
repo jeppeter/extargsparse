@@ -35,7 +35,7 @@ def debug_release():
     		l = l.rstrip('\r\n')
     		vernum = l
     		break
-    sarr = re.split('\.',vernum)
+    sarr = re.split('\\.',vernum)
     if len(sarr) != 3:
     	raise Exception('version (%s) not format x.x.x'%(vernum))
     VERSIONNUMBER = vernum

@@ -24,17 +24,17 @@ class KeyAttr(object):
                 if attr.lower().startswith('split=') and len(attr) >= 7:
                     c = attr[6]
                     if c == '.':
-                        self.__splitchar= '\.'
+                        self.__splitchar= '\\.'
                     elif c == '\\':
                         self.__splitchar= '\\'
-                    elif c == '\/':
-                        self.__splitchar= '\/'
+                    elif c == '\\/':
+                        self.__splitchar= '\\/'
                     elif c == ':':
                         self.__splitchar= ':'
                     elif c == '@':
                         self.__splitchar= '@'
                     elif c == '+':
-                        self.__splitchar = '\+'
+                        self.__splitchar = '\\+'
                     else:
                         raise Exception('can not accept (%s) as split char'%(c))
                 sarr = re.split(self.__splitchar,attr)
@@ -370,7 +370,7 @@ class ExtKeyParse(object):
                 flagmod = True
             if flags is not None:
                 if '|' in flags:
-                    sarr = re.split('\|',flags)
+                    sarr = re.split('\\|',flags)
                     if len(sarr) > 2 or len(sarr[1]) != 1 or len(sarr[0]) <= 1 :
                         raise Exception('(%s) (%s)flag only accept (longop|l) format'%(self.__origkey,flags))
                     self.__flagname = sarr[0]
@@ -383,7 +383,7 @@ class ExtKeyParse(object):
             if m and len(m) > 0:
                 flags = m[0]
                 if '|' in flags:
-                    sarr = re.split('\|',flags)
+                    sarr = re.split('\\|',flags)
                     if len(sarr) > 2 or len(sarr[1]) != 1 or len(sarr[0]) <= 1 :
                         raise Exception('(%s) (%s)flag only accept (longop|l) format'%(self.__origkey,flags))
                     self.__flagname = sarr[0]
@@ -403,7 +403,7 @@ class ExtKeyParse(object):
                 if '|' in m[0]:
                     flags = m[0]
                     if '|' in flags:
-                        sarr = re.split('\|',flags)
+                        sarr = re.split('\\|',flags)
                         if len(sarr) > 2 or len(sarr[1]) != 1 or len(sarr[0]) <= 1 :
                             raise Exception('(%s) (%s)flag only accept (longop|l) format'%(self.__origkey,flags))
                         self.__flagname = sarr[0]
@@ -504,13 +504,13 @@ class ExtKeyParse(object):
         value = Utf8Encode(value).get_val()
 
         self.__reset()
-        self.__helpexpr = re.compile('##([^\#\!]+)##$',re.I)
-        self.__cmdexpr = re.compile('^([^\#\<\>\+\$\!]+)',re.I)
-        self.__prefixexpr = re.compile('\+([a-zA-Z]+[a-zA-Z_\-0-9]*)',re.I)
-        self.__funcexpr = re.compile('<([^\<\>\#\$\| \t\!]+)>',re.I)
-        self.__flagexpr = re.compile('^([a-zA-Z_\|\?\-]+[a-zA-Z_0-9\|\?\-]*)',re.I)
-        self.__mustflagexpr = re.compile('^\$([a-zA-Z_\|\?]+[a-zA-Z_0-9\|\?\-]*)',re.I)
-        self.__attrexpr = re.compile('\!([^\<\>\$!\#\|]+)\!')
+        self.__helpexpr = re.compile('##([^\\#\\!]+)##$',re.I)
+        self.__cmdexpr = re.compile('^([^\\#\\<\\>\\+\\$\\!]+)',re.I)
+        self.__prefixexpr = re.compile('\\+([a-zA-Z]+[a-zA-Z_\\-0-9]*)',re.I)
+        self.__funcexpr = re.compile('<([^\\<\\>\\#\\$\\| \t\\!]+)>',re.I)
+        self.__flagexpr = re.compile('^([a-zA-Z_\\|\\?\\-]+[a-zA-Z_0-9\\|\\?\\-]*)',re.I)
+        self.__mustflagexpr = re.compile('^\\$([a-zA-Z_\\|\\?]+[a-zA-Z_0-9\\|\\?\\-]*)',re.I)
+        self.__attrexpr = re.compile('\\!([^\\<\\>\\$!\\#\\|]+)\\!')
         self.__origkey = key
         self.__longprefix = longprefix
         self.__shortprefix = shortprefix

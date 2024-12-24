@@ -130,7 +130,7 @@ class _LoggerObject(object):
             if '.' not in funcname:
                 m = importlib.import_module(mname)
             else:
-                sarr = re.split('\.',funcname)
+                sarr = re.split('\\.',funcname)
                 mname = '.'.join(sarr[:-1])
                 fname = sarr[-1]
                 m = importlib.import_module(mname)
@@ -1217,7 +1217,7 @@ class ExtArgsParse(_LoggerObject):
     def __find_commands_in_path(self,cmdname,curparser=None):
         sarr = ['']
         if cmdname is not None:
-            sarr = re.split('\.',cmdname)
+            sarr = re.split('\\.',cmdname)
         commands = []
         i = 0
         if self.__maincmd is not None:
@@ -1235,7 +1235,7 @@ class ExtArgsParse(_LoggerObject):
 
 
     def __find_command_inner(self,name,curparser=None):
-        sarr = re.split('\.',name)
+        sarr = re.split('\\.',name)
         curroot = self.__maincmd
         nextparsers = []
         if curparser is not None:
@@ -1262,7 +1262,7 @@ class ExtArgsParse(_LoggerObject):
             return parentcmd
         if parentcmd is None:
             parentcmd = self.__maincmd
-        sarr = re.split('\.',cmdname)
+        sarr = re.split('\\.',cmdname)
         for c in parentcmd.subcommands:
             if c.cmdname == sarr[0]:
                 findcmd = self.__find_subparser_inner('.'.join(sarr[1:]),c)
@@ -1837,7 +1837,7 @@ class ExtArgsParse(_LoggerObject):
             for c in cmdpaths[-1].subcommands:
                 retnames.append(c.cmdname)            
             return sorted(retnames)
-        sarr = re.split('\.',cmdname)
+        sarr = re.split('\\.',cmdname)
         for c in cmdpaths[-1].subcommands:
             if c.cmdname == sarr[0]:
                 cmdpaths.append(c)
@@ -1851,7 +1851,7 @@ class ExtArgsParse(_LoggerObject):
         if cmdname is None or len(cmdname) == 0:
             retkey = cmdpaths[-1].keycls
             return retkey
-        sarr = re.split('\.',cmdname)
+        sarr = re.split('\\.',cmdname)
         for c in cmdpaths[-1].subcommands:
             if c.cmdname == sarr[0]:
                 cmdpaths.append(c)
@@ -1902,7 +1902,7 @@ class ExtArgsParse(_LoggerObject):
             # now sorted the retopts
             return self.__sort_cmdopts(retopts)
 
-        sarr = re.split('\.',cmdname)
+        sarr = re.split('\\.',cmdname)
         for c in cmdpaths[-1].subcommands:
             if c.cmdname == sarr[0]:
                 cmdpaths.append(c)
@@ -3271,7 +3271,7 @@ class debug_extargs_test_case(unittest.TestCase):
         if not EXTARGS_RELEASE_MODE:
             curdir = os.path.dirname(os.path.abspath(__file__))
             curfile = os.path.basename(__file__)
-            sarr = re.split('\.',curfile)
+            sarr = re.split('\\.',curfile)
             if len(sarr) > 1:
                 # remove last
                 sarr.pop()
@@ -4012,7 +4012,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sarr = self.__split_strings(sio.getvalue())
         instr  = 0
         # we must have this
-        matchexpr = re.compile('.*opthelp function set \[pair\].*')
+        matchexpr = re.compile('.*opthelp function set \\[pair\\].*')
         for c in sarr:
             if matchexpr.match(c):
                 instr = 1
@@ -4191,7 +4191,7 @@ class debug_extargs_test_case(unittest.TestCase):
         logging.info('get value (%s)'%(sio.getvalue()))
         sarr = self.__split_strings(sio.getvalue())
         overlength = 0
-        matchexpr = re.compile('^\s+\+\+usage|\+\?\s+to display.*')
+        matchexpr = re.compile('^\\s+\\+\\+usage|\\+\\?\\s+to display.*')
         # we must have to omit the first line
         matched = 0
         for c in sarr:
@@ -4229,7 +4229,7 @@ class debug_extargs_test_case(unittest.TestCase):
         logging.info('get value (%s)'%(sio.getvalue()))
         sarr = self.__split_strings(sio.getvalue())
         overlength = 0
-        matchexpr = re.compile('^\s+\+\+usage\s+to display.*')
+        matchexpr = re.compile('^\\s+\\+\\+usage\\s+to display.*')
         # we must have to omit the first line
         matched = 0
         for c in sarr:
@@ -4285,8 +4285,8 @@ class debug_extargs_test_case(unittest.TestCase):
             parser.print_help(sio)
             # now it will give no help
             logging.info('help (%s)'%(sio.getvalue()))
-            helpexpr = re.compile('^\s+--help.*')
-            jsonexpr = re.compile('^\s+--json.*')
+            helpexpr = re.compile('^\\s+--help.*')
+            jsonexpr = re.compile('^\\s+--json.*')
             helpfind = False
             jsonfind = False
             sarr = self.__split_strings(sio.getvalue())
@@ -4360,10 +4360,10 @@ class debug_extargs_test_case(unittest.TestCase):
             parser.print_help(sio,"dep")
             # now it will give no help
             logging.info('help (%s)'%(sio.getvalue()))
-            helpexpr = re.compile('^\s+--help.*')
-            jsonexpr = re.compile('^\s+--dep-json.*')
-            listexpr = re.compile('^\s+--list.*')
-            stringexpr = re.compile('^\s+--string.*')
+            helpexpr = re.compile('^\\s+--help.*')
+            jsonexpr = re.compile('^\\s+--dep-json.*')
+            listexpr = re.compile('^\\s+--list.*')
+            stringexpr = re.compile('^\\s+--string.*')
             helpfind = False
             jsonfind = False
             listfind = False
@@ -4387,10 +4387,10 @@ class debug_extargs_test_case(unittest.TestCase):
             parser.print_help(sio,"rdep")
             # now it will give no help
             logging.info('help (%s)'%(sio.getvalue()))
-            helpexpr = re.compile('^\s+--help.*')
-            jsonexpr = re.compile('^\s+--rdep-json.*')
-            listexpr = re.compile('^\s+--list.*')
-            stringexpr = re.compile('^\s+--string.*')
+            helpexpr = re.compile('^\\s+--help.*')
+            jsonexpr = re.compile('^\\s+--rdep-json.*')
+            listexpr = re.compile('^\\s+--list.*')
+            stringexpr = re.compile('^\\s+--string.*')
             helpfind = False
             jsonfind = False
             listfind = False
@@ -4688,7 +4688,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sio = StringIO.StringIO()
         parser.print_help(sio)
         sarr = self.__split_strings(sio.getvalue())
-        matchexpr = re.compile('.*\[OPTIONS\]\s+\[SUBCOMMANDS\]\s+.*')
+        matchexpr = re.compile('.*\\[OPTIONS\\]\\s+\\[SUBCOMMANDS\\]\\s+.*')
         self.assertTrue(matchexpr.match(sarr[0]))
         return
 
@@ -4777,7 +4777,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sio = StringIO.StringIO()
         parser.print_help(sio,"dep")
         sarr = self.__split_strings(sio.getvalue())
-        expr = re.compile('\[cc\]... dep handler used')
+        expr = re.compile('\\[cc\\]... dep handler used')
         ok = False
         if len(sarr) > 0 :
             m = expr.findall(sarr[0])
@@ -4787,7 +4787,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sio = StringIO.StringIO()
         parser.print_help(sio,"rdep")
         sarr = self.__split_strings(sio.getvalue())
-        expr = re.compile('\[dd\]... rdep handler used')
+        expr = re.compile('\\[dd\\]... rdep handler used')
         ok = False
         if len(sarr) > 0 :
             m = expr.findall(sarr[0])
@@ -4821,7 +4821,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sio = StringIO.StringIO()
         parser.print_help(sio,"dep")
         sarr = self.__split_strings(sio.getvalue())
-        expr = re.compile('\[cc\]... dep handler used')
+        expr = re.compile('\\[cc\\]... dep handler used')
         expr2 = re.compile('cmd1')
         ok = False
         if len(sarr) > 0 :
@@ -4834,7 +4834,7 @@ class debug_extargs_test_case(unittest.TestCase):
         sio = StringIO.StringIO()
         parser.print_help(sio,"rdep")
         sarr = self.__split_strings(sio.getvalue())
-        expr = re.compile('\[dd\]... rdep handler used')
+        expr = re.compile('\\[dd\\]... rdep handler used')
         ok = False
         if len(sarr) > 0 :
             m = expr.findall(sarr[0])

@@ -83,7 +83,7 @@ class debug_version_test(unittest.TestCase):
     			l = l.rstrip('\r\n')
     			vernum = l
     	self.assertEqual(vernum , extargsparse.__version__)
-    	sarr = re.split('\.',vernum)
+    	sarr = re.split('\\.',vernum)
     	self.assertEqual(len(sarr),3)
     	i = 0
     	while i < len(sarr):
